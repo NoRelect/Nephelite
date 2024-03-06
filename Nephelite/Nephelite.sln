@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nephelite", "Nephelite\Nephelite.csproj", "{F213AF41-EA4D-46F1-99CB-1FA5F0AE5808}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F213AF41-EA4D-46F1-99CB-1FA5F0AE5808}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F213AF41-EA4D-46F1-99CB-1FA5F0AE5808}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F213AF41-EA4D-46F1-99CB-1FA5F0AE5808}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F213AF41-EA4D-46F1-99CB-1FA5F0AE5808}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
