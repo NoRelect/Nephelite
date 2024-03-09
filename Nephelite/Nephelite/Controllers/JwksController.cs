@@ -1,7 +1,3 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
-using Nephelite.Services;
-
 namespace Nephelite.Controllers;
 
 [ApiController]

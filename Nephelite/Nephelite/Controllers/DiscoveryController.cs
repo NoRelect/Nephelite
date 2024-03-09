@@ -1,6 +1,3 @@
-using Microsoft.AspNetCore.Mvc;
-using Nephelite.Model;
-
 namespace Nephelite.Controllers;
 
 [ApiController]
