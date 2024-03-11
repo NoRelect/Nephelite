@@ -1,6 +1,6 @@
 namespace Nephelite.CustomResources;
 
-public class V1PublicKeyCredential
+public class V1PublicKeyCredentialSpec
 {
     [JsonPropertyName("user")]
     public string User { get; set; } = default!;

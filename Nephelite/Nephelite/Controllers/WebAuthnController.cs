@@ -1,19 +1,17 @@
-using Microsoft.Extensions.Options;
-
 namespace Nephelite.Controllers;
 
 [ApiController]
 [Route("/webauthn")]
-public class WebAuthenticationController : ControllerBase
+public class WebAuthnController : ControllerBase
 {
     private readonly IFido2 _fido2;
     private readonly IOptionsSnapshot<PublicKeyCredentialsConfiguration> _publicKeyCredentials;
-    private readonly ILogger<WebAuthenticationController> _logger;
+    private readonly ILogger<WebAuthnController> _logger;
 
-    public WebAuthenticationController(
+    public WebAuthnController(
         IFido2 fido2,
         IOptionsSnapshot<PublicKeyCredentialsConfiguration> publicKeyCredentials,
-        ILogger<WebAuthenticationController> logger)
+        ILogger<WebAuthnController> logger)
     {
         _fido2 = fido2;
         _publicKeyCredentials = publicKeyCredentials;

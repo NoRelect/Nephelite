@@ -2,5 +2,5 @@ namespace Nephelite.Configuration;
 
 public class PublicKeyCredentialsConfiguration
 {
-    public List<V1PublicKeyCredential> Credentials { get; set; }
+    public List<V1PublicKeyCredentialSpec> Credentials { get; set; }
 }

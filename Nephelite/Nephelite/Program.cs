@@ -4,9 +4,9 @@ builder.Services.AddOptions();
 //builder.Services.Configure<PublicKeyCredentialsConfiguration>(builder.Configuration);
 builder.Services.Configure<PublicKeyCredentialsConfiguration>(opts =>
 {
-    opts.Credentials = new List<V1PublicKeyCredential>
+    opts.Credentials = new List<V1PublicKeyCredentialSpec>
     {
-        JsonSerializer.Deserialize<V1PublicKeyCredential>("""
+        JsonSerializer.Deserialize<V1PublicKeyCredentialSpec>("""
                                                           {
                                                             "user": "test",
                                                             "credentialId": "Rn0xWtlk8TmUPS9MsQBYKNRdy/U8ugkq490I6cTETz7cyHGnTDFXnzFpB7UYDE7zDWVlpejBK6ElIYPtlM8d2g==",
