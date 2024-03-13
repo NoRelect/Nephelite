@@ -62,7 +62,7 @@ function coerceToBase64Url(thing) {
     return thing;
 }
 
-function authenticate(state, options) {
+function authenticate(session, options) {
     options.challenge = coerceToArrayBuffer(options.challenge);
     options.allowCredentials = options.allowCredentials.map((c) => {
         c.id = coerceToArrayBuffer(c.id);
@@ -87,13 +87,13 @@ function authenticate(state, options) {
         let form = document.createElement("form");
         form.method = "POST";
         form.action = "/authorize";
-        let stateInput = document.createElement("input");
-        stateInput.name = "state";
-        stateInput.value = state;
+        let sessionInput = document.createElement("input");
+        sessionInput.name = "session";
+        sessionInput.value = session;
         let clientResponseInput = document.createElement("input");
         clientResponseInput.name = "response";
         clientResponseInput.value = clientResponse;
-        form.appendChild(stateInput);
+        form.appendChild(sessionInput);
         form.appendChild(clientResponseInput);
         document.body.appendChild(form);
         form.submit();

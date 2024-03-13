@@ -15,6 +15,18 @@ builder.Services.Configure<PublicKeyCredentialsConfiguration>(opts =>
                                                           """)!
     };
 });
+builder.Services.Configure<ClientConfiguration>(opts =>
+{
+    opts.Clients = new List<V1ClientSpec>
+    {
+        new()
+        {
+            ClientId = "test",
+            ClientSecret = "secret",
+            RedirectUrls = new []{ "https://localhost:5000" }
+        }
+    };
+});
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

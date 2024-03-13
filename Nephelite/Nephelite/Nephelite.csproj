@@ -23,4 +23,8 @@
       <None Include="wwwroot\webauthn.js" />
     </ItemGroup>
 
+    <ItemGroup>
+      <_ContentIncludedByDefault Remove="Views\Authorize.cshtml" />
+    </ItemGroup>
+
 </Project>
