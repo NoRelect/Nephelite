@@ -19,23 +19,12 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<KeyService>();
-builder.Services.AddMemoryCache();
-builder.Services.AddDistributedMemoryCache();
-builder.Services.AddSession(options =>
-{
-    options.IdleTimeout = TimeSpan.FromMinutes(2);
-    options.Cookie.HttpOnly = true;
-});
 builder.Services.AddFido2(options =>
-    {
-        options.ServerDomain = "localhost";
-        options.ServerName = "Localhost";
-        options.Origins = new HashSet<string> { "https://localhost:7096 " };
-    })
-    .AddCachedMetadataService(config =>
-    {
-        config.AddFidoMetadataRepository();
-    });
+{
+    options.ServerDomain = "localhost";
+    options.ServerName = "Localhost";
+    options.Origins = new HashSet<string> { "https://localhost:7096 " };
+});
 
 var app = builder.Build();
 
@@ -47,7 +36,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
-app.UseSession();
 app.UseAuthorization();
 app.MapControllers();
 
