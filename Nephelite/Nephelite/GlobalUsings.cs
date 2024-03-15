@@ -1,6 +1,7 @@
 global using Fido2NetLib;
 global using Fido2NetLib.Objects;
 global using Microsoft.AspNetCore.Mvc;
+global using Microsoft.AspNetCore.WebUtilities;
 global using Microsoft.Extensions.Options;
 global using Microsoft.IdentityModel.JsonWebTokens;
 global using Microsoft.IdentityModel.Tokens;

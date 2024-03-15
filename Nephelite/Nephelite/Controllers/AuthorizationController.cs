@@ -1,3 +1,5 @@
+using System.Text.Encodings.Web;
+
 namespace Nephelite.Controllers;
 
 [ApiController]
@@ -25,23 +27,13 @@ public class AuthorizationController : ControllerBase
     }
     
     // Testing done with the following url:
-    // https://localhost:7096/authorize?scope=openid&client_id=test&redirect_uri=https://localhost:5000
+    // https://localhost:7096/authorize?scope=openid&client_id=test&redirect_uri=https://localhost:5000&response_type=id_token%20token&nonce=once
     [HttpGet]
     public IActionResult PromptAuthentication([FromQuery] AuthorizationRequest request)
     {
-        var scopes = request.Scope?.Split(" ") ?? Array.Empty<string>();
-        if (!scopes.Contains("openid"))
-        {
-            _logger.LogWarning("Request is missing the openid scope: '{Scope}'", request.Scope);
-            HttpContext.Response.StatusCode = 400;
-            return new JsonResult(new {Error = "Invalid scope"});
-        }
-        
         var client = _clients.Value.Clients.FirstOrDefault(c => c.ClientId == request.ClientId);
         if (client == null)
         {
-            // Do not redirect in case the client id is wrong since we can't validate the redirect uri.
-            // Instead, show an error message directly to the user.
             _logger.LogWarning("Request used an invalid client id: '{ClientId}'", request.ClientId);
             HttpContext.Response.StatusCode = 400;
             return new JsonResult(new {Error = "Invalid client id"});
@@ -50,22 +42,40 @@ public class AuthorizationController : ControllerBase
         if (string.IsNullOrEmpty(request.RedirectUri) || !request.RedirectUri.StartsWith("https://") ||
             !client.RedirectUrls.Contains(request.RedirectUri))
         {
-            // Do not redirect in case the redirect uri is wrong.
-            // Instead, show an error message to the user.
             _logger.LogWarning("Request used an invalid redirect uri: '{RedirectUri}'", request.RedirectUri);
             HttpContext.Response.StatusCode = 400;
             return new JsonResult(new {Error = "Invalid redirect uri"});
         }
+
+        var scopes = request.Scope?.Split(" ") ?? Array.Empty<string>();
+        if (!scopes.Contains("openid"))
+        {
+            _logger.LogWarning("Request is missing the openid scope: '{Scope}'", request.Scope);
+            return RedirectWithError(request, "invalid_scope");
+        }
         
+        var validResponseTypes = new [] { "code", "id_token token", "id_token" };
+        if (string.IsNullOrEmpty(request.ResponseType) || !validResponseTypes.Contains(request.ResponseType))
+        {
+            _logger.LogWarning("Request used an invalid response type: '{ResponseType}'", request.ResponseType);
+            return RedirectWithError(request, "unsupported_response_type");
+        }
+
+        switch (request.ResponseType)
+        {
+            case "code" when !client.IsConfidentialClient:
+                _logger.LogWarning("Request tried to use invalid response type for public client: {ResponseType}",
+                    request.ResponseType);
+                return RedirectWithError(request, "unauthorized_client");
+            case "id_token token" or "id_token" when request.Nonce == null:
+                _logger.LogWarning("Request tried to use implicit flow without nonce");
+                return RedirectWithError(request, "invalid_request");
+        }
+
         if (request.Prompt == "none")
         {
             // We do not keep track of who is logged in or not, so we always return the "not logged in" state
-            var uriBuilder = new UriBuilder(new Uri(request.RedirectUri))
-            {
-                Query = $"error=login_required&state={request.State}",
-                Fragment = null,
-            };
-            return Redirect(uriBuilder.Uri.ToString());
+            return RedirectWithError(request, "login_required");
         }
         
         var existingCredentials = _publicKeyCredentials.Value.Credentials
@@ -84,7 +94,7 @@ public class AuthorizationController : ControllerBase
             }
         );
 
-        var session = _keyService.Encrypt(JsonSerializer.Serialize(new SessionInformation
+        var session = _keyService.EncryptSession(JsonSerializer.Serialize(new SessionInformation
         {
             AuthorizationRequest = request,
             AssertionOptions = assertionOptions,
@@ -124,12 +134,14 @@ public class AuthorizationController : ControllerBase
             return new JsonResult(new {Error = "Invalid client response"});
         }
         
-        var sessionInformation = JsonSerializer.Deserialize<SessionInformation>(_keyService.Decrypt(session));
+        var sessionInformation = JsonSerializer.Deserialize<SessionInformation>(_keyService.DecryptSession(session));
         if (sessionInformation == null)
         {
             HttpContext.Response.StatusCode = 400;
             return new JsonResult(new {Error = "Invalid session"});
         }
+
+        var request = sessionInformation.AuthorizationRequest;
 
         var elapsedTime = DateTime.UtcNow.Subtract(sessionInformation.RequestStart);
         if (elapsedTime.TotalMinutes is < 0 or > 5)
@@ -142,17 +154,92 @@ public class AuthorizationController : ControllerBase
         var cred = _publicKeyCredentials.Value.Credentials
                 .First(c => c.CredentialId.SequenceEqual(clientResponse.Id));
 
-        var result = await _fido2.MakeAssertionAsync(
-            clientResponse, sessionInformation.AssertionOptions, cred.PublicKey, 0, Callback, cancellationToken: cancellationToken);
-
+        try
+        {
+            await _fido2.MakeAssertionAsync(
+                clientResponse, sessionInformation.AssertionOptions, cred.PublicKey, 0, Callback,
+                cancellationToken: cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Authentication failed: {Exception}", ex);
+            return RedirectWithError(request, "access_denied");
+        }
+        
         // Create OpenID spec compliant response with either
         // an authorization code, an id_token or an access token or a combination
+        var expiryDate = sessionInformation.RequestStart
+            .Add(TimeSpan.FromMinutes(5));
+        var expiresIn = (int)expiryDate.Subtract(DateTime.UtcNow).TotalSeconds;
+        var jwtHandler = new JsonWebTokenHandler();
+        var nonce = sessionInformation.AuthorizationRequest.Nonce;
+        var accessTokenDescriptor = new SecurityTokenDescriptor
+        {
+            Issuer = "https://localhost:7096/",
+            Audience = "https://localhost:7096/",
+            IssuedAt = sessionInformation.RequestStart,
+            Expires = expiryDate,
+            Claims = new Dictionary<string, object?>
+            {
+                { "sub", "test" }
+            },
+            SigningCredentials = _keyService.GetSigningCredentials(),
+            EncryptingCredentials = _keyService.GetEncryptingCredentials()
+        };
+        if(!string.IsNullOrEmpty(nonce))
+            accessTokenDescriptor.Claims.Add("nonce", nonce);
+        var accessToken = jwtHandler.CreateToken(accessTokenDescriptor);
+        var idTokenDescriptor = new SecurityTokenDescriptor
+        {
+            Issuer = "https://localhost:7096/",
+            Audience = sessionInformation.AuthorizationRequest.ClientId,
+            IssuedAt = sessionInformation.RequestStart,
+            Expires = expiryDate,
+            Claims = new Dictionary<string, object?>
+            {
+                { "sub", "test" }
+            },
+            SigningCredentials = _keyService.GetSigningCredentials(),
+            EncryptingCredentials = null
+        };
+        if (request.ResponseType == "id_token token")
+            idTokenDescriptor.Claims.Add("at_hash",
+                WebEncoders.Base64UrlEncode(SHA256.HashData(Encoding.ASCII.GetBytes(accessToken))));
+        if(!string.IsNullOrEmpty(nonce))
+            idTokenDescriptor.Claims.Add("nonce", nonce);
+        var idToken = jwtHandler.CreateToken(idTokenDescriptor);
         
-        return new JsonResult(result);
-
+        HttpContext.Response.Headers.CacheControl = "no-store";
+        var uriBuilder = new UriBuilder(new Uri(request.RedirectUri!));
+        switch (request.ResponseType)
+        {
+            case "code":
+                uriBuilder.Query = $"code=TODO&state={UrlEncoder.Default.Encode(request.State)}";
+                return Redirect(uriBuilder.Uri.ToString());
+            case "id_token token":
+                uriBuilder.Fragment = $"access_token={accessToken}&token_type=Bearer&id_token={idToken}" +
+                                      $"&state={UrlEncoder.Default.Encode(request.State)}&expires_in={expiresIn}&nonce={UrlEncoder.Default.Encode(request.Nonce)}";
+                return Redirect(uriBuilder.Uri.ToString());
+            case "id_token":
+                uriBuilder.Fragment = $"id_token={idToken}&state={UrlEncoder.Default.Encode(request.State)}&expires_in={expiresIn}";
+                return Redirect(uriBuilder.Uri.ToString());
+            default:
+                _logger.LogWarning("Invalid response type used: {ResponseType}", request.ResponseType);
+                HttpContext.Response.StatusCode = 400;
+                return new JsonResult(new { Error = "Invalid response type"});
+        }
         async Task<bool> Callback(IsUserHandleOwnerOfCredentialIdParams args, CancellationToken cancellation)
         {
             return await Task.FromResult(true);
         }
+    }
+
+    private RedirectResult RedirectWithError(AuthorizationRequest request, string error)
+    {
+        var uriBuilder = new UriBuilder(new Uri(request.RedirectUri!))
+        {
+            Query = $"error={error}&state={UrlEncoder.Default.Encode(request.State)}",
+        };
+        return Redirect(uriBuilder.Uri.ToString());
     }
 }

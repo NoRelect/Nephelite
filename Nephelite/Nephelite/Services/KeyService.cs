@@ -4,7 +4,8 @@ public class KeyService
 {
     private readonly RsaSecurityKey _privateKey;
     private readonly JsonWebKey _publicKey;
-    private readonly ChaCha20Poly1305 _encryptionKey;
+    private readonly ChaCha20Poly1305 _sessionEncryptionKey;
+    private readonly SymmetricSecurityKey _encryptionKey;
     
     public KeyService()
     {
@@ -17,7 +18,8 @@ public class KeyService
         });
 
         var keyBytes = RandomNumberGenerator.GetBytes(32);
-        _encryptionKey = new ChaCha20Poly1305(keyBytes);
+        _sessionEncryptionKey = new ChaCha20Poly1305(keyBytes);
+        _encryptionKey = new SymmetricSecurityKey(RandomNumberGenerator.GetBytes(32));
     }
 
     public JsonWebKeySet GetPublicJsonWebKeySet()
@@ -27,24 +29,34 @@ public class KeyService
         return keys;
     }
 
-    public string Encrypt(string data)
+    public SigningCredentials GetSigningCredentials()
+    {
+        return new SigningCredentials(_privateKey, "RS256");
+    }
+    
+    public EncryptingCredentials GetEncryptingCredentials()
+    {
+        return new EncryptingCredentials(_encryptionKey, SecurityAlgorithms.Aes256KW, SecurityAlgorithms.Aes256CbcHmacSha512);
+    }
+
+    public string EncryptSession(string data)
     {
         var plain = Encoding.UTF8.GetBytes(data);
         var nonce = RandomNumberGenerator.GetBytes(12);
         var cipher = new byte[plain.Length];
         var tag = new byte[16];
-        _encryptionKey.Encrypt(nonce, plain, cipher, tag);
+        _sessionEncryptionKey.Encrypt(nonce, plain, cipher, tag);
         return Convert.ToBase64String(nonce) + "." + Convert.ToBase64String(cipher) + "." + Convert.ToBase64String(tag);
     }
 
-    public string Decrypt(string data)
+    public string DecryptSession(string data)
     {
         var parts = data.Split(".").Select(Convert.FromBase64String).ToArray();
         var nonce = parts[0];
         var cipher = parts[1];
         var tag = parts[2];
         var plain = new byte[cipher.Length];
-        _encryptionKey.Decrypt(nonce, cipher, tag, plain);
+        _sessionEncryptionKey.Decrypt(nonce, cipher, tag, plain);
         return Encoding.UTF8.GetString(plain);
     }
 }

@@ -5,18 +5,16 @@ namespace Nephelite.Controllers;
 public class DiscoveryController : ControllerBase
 {
     private readonly KeyService _keyService;
-    private readonly ILogger<DiscoveryController> _logger;
 
-    public DiscoveryController(KeyService keyService, ILogger<DiscoveryController> logger)
+    public DiscoveryController(KeyService keyService)
     {
         _keyService = keyService;
-        _logger = logger;
     }
 
     [HttpGet]
     public OpenIdProviderMetadata Get()
     {
-        var domain = "example.com";
+        var domain = "localhost:7096";
         return new OpenIdProviderMetadata
         {
             Issuer = $"https://{domain}",
@@ -25,7 +23,7 @@ public class DiscoveryController : ControllerBase
             JwksUri = $"https://{domain}/jwks",
             UserInfoEndpoint = $"https://{domain}/user_info",
             SupportedScopes = new List<string>{ "openid" },
-            SupportedResponseTypes = new List<string> { "code", "code id_token", "id_token", "id_token token" },
+            SupportedResponseTypes = new List<string> { "code", "id_token", "id_token token" },
             SupportedSubjectTypes = new List<string> { "public" },
             SupportedIdTokenSigningAlgorithmValues= _keyService.GetPublicJsonWebKeySet().Keys
                 .Select(k => k.Alg).ToList()
