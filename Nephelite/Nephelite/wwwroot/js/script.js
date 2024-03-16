@@ -85,6 +85,7 @@ function authenticate(session, options) {
             }
         });
         let form = document.createElement("form");
+        form.style = "display: none;";
         form.method = "POST";
         form.action = "/authorize";
         let sessionInput = document.createElement("input");

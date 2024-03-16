@@ -4,11 +4,8 @@ namespace Nephelite.Controllers;
 [Route("/.well-known/openid-configuration")]
 public class DiscoveryController : ControllerBase
 {
-    private readonly KeyService _keyService;
-
-    public DiscoveryController(KeyService keyService)
+    public DiscoveryController()
     {
-        _keyService = keyService;
     }
 
     [HttpGet]
@@ -25,8 +22,7 @@ public class DiscoveryController : ControllerBase
             SupportedScopes = new List<string>{ "openid" },
             SupportedResponseTypes = new List<string> { "code", "id_token", "id_token token" },
             SupportedSubjectTypes = new List<string> { "public" },
-            SupportedIdTokenSigningAlgorithmValues= _keyService.GetPublicJsonWebKeySet().Keys
-                .Select(k => k.Alg).ToList()
+            SupportedIdTokenSigningAlgorithmValues= new List<string> { "RS256" }
         });
     }
 }

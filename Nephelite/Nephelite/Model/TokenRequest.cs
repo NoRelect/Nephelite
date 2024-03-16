@@ -2,12 +2,18 @@ namespace Nephelite.Model;
 
 public class TokenRequest
 {
-    [FromQuery(Name = "grant_type")]
+    [FromForm(Name = "grant_type")]
     public string? GrantType { get; set; }
     
-    [FromQuery(Name = "code")]
+    [FromForm(Name = "code")]
     public string? Code { get; set; }
     
-    [FromQuery(Name = "redirect_uri")]
+    [FromForm(Name = "redirect_uri")]
     public string? RedirectUri { get; set; }
+    
+    [FromForm(Name = "client_id")]
+    public string? ClientId { get; set; }
+    
+    [FromForm(Name = "client_secret")]
+    public string? ClientSecret { get; set; }
 }

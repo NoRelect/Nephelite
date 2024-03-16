@@ -28,6 +28,16 @@ public class AuthorizationController : ControllerBase
     
     // Testing done with the following url:
     // https://localhost:7096/authorize?scope=openid&client_id=test&redirect_uri=https://localhost:5000&response_type=id_token%20token&nonce=once
+    // docker run --rm -it --net host quay.io/oauth2-proxy/oauth2-proxy:latest \
+    //     --provider oidc \
+    //     --oidc-issuer-url=https://localhost:7096 \
+    //     --client-id test \
+    //     --client-secret secret \
+    //     --redirect-url http://localhost:4180/oauth2/callback \
+    //     --cookie-secret=W46ZL6Vk-CSsbsTX3UgHqtXG4ffUPkNnNjEvJCvuS_4= \
+    //     --email-domain=* \
+    //     --ssl-insecure-skip-verify \
+    //     --cookie-secure=false
     [HttpGet]
     public IActionResult PromptAuthentication([FromQuery] AuthorizationRequest request)
     {
@@ -39,7 +49,7 @@ public class AuthorizationController : ControllerBase
             return new JsonResult(new {Error = "Invalid client id"});
         }
         
-        if (string.IsNullOrEmpty(request.RedirectUri) || !request.RedirectUri.StartsWith("https://") ||
+        if (string.IsNullOrEmpty(request.RedirectUri) ||
             !client.RedirectUrls.Contains(request.RedirectUri))
         {
             _logger.LogWarning("Request used an invalid redirect uri: '{RedirectUri}'", request.RedirectUri);
@@ -179,13 +189,14 @@ public class AuthorizationController : ControllerBase
         var nonce = sessionInformation.AuthorizationRequest.Nonce;
         var accessTokenDescriptor = new SecurityTokenDescriptor
         {
-            Issuer = "https://localhost:7096/",
-            Audience = "https://localhost:7096/",
+            Issuer = "https://localhost:7096",
+            Audience = "https://localhost:7096",
             IssuedAt = sessionInformation.RequestStart,
             Expires = expiryDate,
             Claims = new Dictionary<string, object?>
             {
-                { "sub", "test" }
+                { "sub", "test" },
+                { "email", "test@test.test" }
             },
             SigningCredentials = _keyService.GetSigningCredentials(),
             EncryptingCredentials = _keyService.GetAccessTokenEncryptingCredentials()
@@ -195,13 +206,14 @@ public class AuthorizationController : ControllerBase
         var accessToken = jwtHandler.CreateToken(accessTokenDescriptor);
         var idTokenDescriptor = new SecurityTokenDescriptor
         {
-            Issuer = "https://localhost:7096/",
+            Issuer = "https://localhost:7096",
             Audience = request.ClientId,
             IssuedAt = sessionInformation.RequestStart,
             Expires = expiryDate,
             Claims = new Dictionary<string, object?>
             {
-                { "sub", "test" }
+                { "sub", "test" },
+                { "email", "test@test.test" }
             },
             SigningCredentials = _keyService.GetSigningCredentials(),
             EncryptingCredentials = null
@@ -215,8 +227,8 @@ public class AuthorizationController : ControllerBase
 
         var authorizationCode = jwtHandler.CreateToken(new SecurityTokenDescriptor
         {
-            Issuer = "https://localhost:7096/",
-            Audience = "https://localhost:7096/",
+            Issuer = "https://localhost:7096",
+            Audience = "https://localhost:7096",
             IssuedAt = sessionInformation.RequestStart,
             Expires = expiryDate,
             Claims = new Dictionary<string, object>

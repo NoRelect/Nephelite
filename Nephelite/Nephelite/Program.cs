@@ -23,7 +23,11 @@ builder.Services.Configure<ClientConfiguration>(opts =>
         {
             ClientId = "test",
             ClientSecret = "secret",
-            RedirectUrls = new []{ "https://localhost:5000" }
+            RedirectUrls = new []
+            {
+                "https://localhost:5000",
+                "http://localhost:4180/oauth2/callback"
+            }
         }
     };
 });
@@ -35,7 +39,7 @@ builder.Services.AddFido2(options =>
 {
     options.ServerDomain = "localhost";
     options.ServerName = "Localhost";
-    options.Origins = new HashSet<string> { "https://localhost:7096 " };
+    options.Origins = new HashSet<string> { "https://localhost:7096" };
 });
 
 var app = builder.Build();

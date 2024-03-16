@@ -19,7 +19,7 @@ public class TokenController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Post([FromQuery] TokenRequest request)
+    public async Task<IActionResult> Post([FromForm] TokenRequest request)
     {
         HttpContext.Response.Headers.CacheControl = "no-store";
         HttpContext.Response.Headers.Pragma = "no-cache";
@@ -36,8 +36,13 @@ public class TokenController : ControllerBase
         }
 
         var authorization = HttpContext.Request.Headers.Authorization.FirstOrDefault();
-        if (!TryGetClientBasicAuthentication(authorization, out var clientId, out var clientSecret)
-            || !_clients.Value.Clients.Any(c => c.ClientId == clientId && c.ClientSecret == clientSecret))
+        if (!TryGetClientBasicAuthentication(authorization, out var clientId, out var clientSecret))
+        {
+            // Gather client credentials either from basic auth or from form data
+            clientId = request.ClientId;
+            clientSecret = request.ClientSecret;
+        }
+        if (!_clients.Value.Clients.Any(c => c.ClientId == clientId && c.ClientSecret == clientSecret))
         {
             HttpContext.Response.StatusCode = 401;
             HttpContext.Response.Headers.WWWAuthenticate = "Basic realm=Nephelite, charset=\"UTF-8\"";
@@ -64,8 +69,8 @@ public class TokenController : ControllerBase
         var jwtHandler = new JsonWebTokenHandler();
         var validationResult = await jwtHandler.ValidateTokenAsync(request.Code, new TokenValidationParameters
         {
-            ValidIssuer = "https://localhost:7096/",
-            ValidAudience = "https://localhost:7096/",
+            ValidIssuer = "https://localhost:7096",
+            ValidAudience = "https://localhost:7096",
             IssuerSigningKey = _keyService.GetSigningCredentials().Key,
             TokenDecryptionKey = _keyService.GetAuthorizationCodeEncryptingCredentials().Key,
             RequireAudience = true,
@@ -89,8 +94,8 @@ public class TokenController : ControllerBase
         var claims = validationResult.Claims;
         var sessionInformation = JsonSerializer.Deserialize<SessionInformation>((string)claims["session_info"])!;
 
-        if (sessionInformation.AuthorizationRequest.RedirectUri != request.RedirectUri ||
-            !client.RedirectUrls.Contains(request.RedirectUri))
+        if (request.RedirectUri != null && (sessionInformation.AuthorizationRequest.RedirectUri != request.RedirectUri ||
+            !client.RedirectUrls.Contains(request.RedirectUri)))
         {
             HttpContext.Response.StatusCode = 400;
             _logger.LogWarning("Token request contained invalid redirect uri: {RedirectUri}", request.RedirectUri);
