@@ -127,14 +127,18 @@ public class AuthorizationController : ControllerBase
         [FromForm] string response,
         CancellationToken cancellationToken)
     {
+        HttpContext.Response.Headers.CacheControl = "no-store";
+        HttpContext.Response.Headers.Pragma = "no-cache";
+        
         var clientResponse = JsonSerializer.Deserialize<AuthenticatorAssertionRawResponse>(response);
         if (clientResponse == null)
         {
             HttpContext.Response.StatusCode = 400;
             return new JsonResult(new {Error = "Invalid client response"});
         }
-        
-        var sessionInformation = JsonSerializer.Deserialize<SessionInformation>(_keyService.DecryptSession(session));
+
+        var decryptedSession = _keyService.DecryptSession(session);
+        var sessionInformation = JsonSerializer.Deserialize<SessionInformation>(decryptedSession);
         if (sessionInformation == null)
         {
             HttpContext.Response.StatusCode = 400;
@@ -184,7 +188,7 @@ public class AuthorizationController : ControllerBase
                 { "sub", "test" }
             },
             SigningCredentials = _keyService.GetSigningCredentials(),
-            EncryptingCredentials = _keyService.GetEncryptingCredentials()
+            EncryptingCredentials = _keyService.GetAccessTokenEncryptingCredentials()
         };
         if(!string.IsNullOrEmpty(nonce))
             accessTokenDescriptor.Claims.Add("nonce", nonce);
@@ -192,7 +196,7 @@ public class AuthorizationController : ControllerBase
         var idTokenDescriptor = new SecurityTokenDescriptor
         {
             Issuer = "https://localhost:7096/",
-            Audience = sessionInformation.AuthorizationRequest.ClientId,
+            Audience = request.ClientId,
             IssuedAt = sessionInformation.RequestStart,
             Expires = expiryDate,
             Claims = new Dictionary<string, object?>
@@ -208,13 +212,28 @@ public class AuthorizationController : ControllerBase
         if(!string.IsNullOrEmpty(nonce))
             idTokenDescriptor.Claims.Add("nonce", nonce);
         var idToken = jwtHandler.CreateToken(idTokenDescriptor);
+
+        var authorizationCode = jwtHandler.CreateToken(new SecurityTokenDescriptor
+        {
+            Issuer = "https://localhost:7096/",
+            Audience = "https://localhost:7096/",
+            IssuedAt = sessionInformation.RequestStart,
+            Expires = expiryDate,
+            Claims = new Dictionary<string, object>
+            {
+                { "access_token", accessToken },
+                { "id_token", idToken },
+                { "session_info", decryptedSession }
+            },
+            SigningCredentials = _keyService.GetSigningCredentials(),
+            EncryptingCredentials = _keyService.GetAuthorizationCodeEncryptingCredentials()
+        });
         
-        HttpContext.Response.Headers.CacheControl = "no-store";
         var uriBuilder = new UriBuilder(new Uri(request.RedirectUri!));
         switch (request.ResponseType)
         {
             case "code":
-                uriBuilder.Query = $"code=TODO&state={UrlEncoder.Default.Encode(request.State)}";
+                uriBuilder.Query = $"code={authorizationCode}&state={UrlEncoder.Default.Encode(request.State)}";
                 return Redirect(uriBuilder.Uri.ToString());
             case "id_token token":
                 uriBuilder.Fragment = $"access_token={accessToken}&token_type=Bearer&id_token={idToken}" +

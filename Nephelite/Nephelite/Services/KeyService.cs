@@ -5,7 +5,8 @@ public class KeyService
     private readonly RsaSecurityKey _privateKey;
     private readonly JsonWebKey _publicKey;
     private readonly ChaCha20Poly1305 _sessionEncryptionKey;
-    private readonly SymmetricSecurityKey _encryptionKey;
+    private readonly SymmetricSecurityKey _accessTokenEncryptionKey;
+    private readonly SymmetricSecurityKey _authorizationCodeEncryptionKey;
     
     public KeyService()
     {
@@ -16,10 +17,10 @@ public class KeyService
         {
             KeyId = _privateKey.KeyId
         });
-
-        var keyBytes = RandomNumberGenerator.GetBytes(32);
-        _sessionEncryptionKey = new ChaCha20Poly1305(keyBytes);
-        _encryptionKey = new SymmetricSecurityKey(RandomNumberGenerator.GetBytes(32));
+        
+        _sessionEncryptionKey = new ChaCha20Poly1305(RandomNumberGenerator.GetBytes(32));
+        _accessTokenEncryptionKey = new SymmetricSecurityKey(RandomNumberGenerator.GetBytes(32));
+        _authorizationCodeEncryptionKey = new SymmetricSecurityKey(RandomNumberGenerator.GetBytes(32));
     }
 
     public JsonWebKeySet GetPublicJsonWebKeySet()
@@ -34,9 +35,16 @@ public class KeyService
         return new SigningCredentials(_privateKey, "RS256");
     }
     
-    public EncryptingCredentials GetEncryptingCredentials()
+    public EncryptingCredentials GetAccessTokenEncryptingCredentials()
     {
-        return new EncryptingCredentials(_encryptionKey, SecurityAlgorithms.Aes256KW, SecurityAlgorithms.Aes256CbcHmacSha512);
+        return new EncryptingCredentials(_accessTokenEncryptionKey, SecurityAlgorithms.Aes256KW,
+            SecurityAlgorithms.Aes256CbcHmacSha512);
+    }
+    
+    public EncryptingCredentials GetAuthorizationCodeEncryptingCredentials()
+    {
+        return new EncryptingCredentials(_authorizationCodeEncryptionKey, SecurityAlgorithms.Aes256KW,
+            SecurityAlgorithms.Aes256CbcHmacSha512);
     }
 
     public string EncryptSession(string data)

@@ -12,10 +12,10 @@ public class DiscoveryController : ControllerBase
     }
 
     [HttpGet]
-    public OpenIdProviderMetadata Get()
+    public IActionResult Get()
     {
         var domain = "localhost:7096";
-        return new OpenIdProviderMetadata
+        return new JsonResult(new OpenIdProviderMetadata
         {
             Issuer = $"https://{domain}",
             AuthorizationEndpoint = $"https://{domain}/authorize",
@@ -27,6 +27,6 @@ public class DiscoveryController : ControllerBase
             SupportedSubjectTypes = new List<string> { "public" },
             SupportedIdTokenSigningAlgorithmValues= _keyService.GetPublicJsonWebKeySet().Keys
                 .Select(k => k.Alg).ToList()
-        };
+        });
     }
 }

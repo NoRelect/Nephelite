@@ -5,17 +5,15 @@ namespace Nephelite.Controllers;
 public class JwksController : ControllerBase
 {
     private readonly KeyService _keyService;
-    private readonly ILogger<DiscoveryController> _logger;
 
-    public JwksController(KeyService keyService, ILogger<DiscoveryController> logger)
+    public JwksController(KeyService keyService)
     {
         _keyService = keyService;
-        _logger = logger;
     }
 
     [HttpGet]
-    public JsonWebKeySet Get()
+    public IActionResult Get()
     {
-        return _keyService.GetPublicJsonWebKeySet();
+        return new JsonResult(_keyService.GetPublicJsonWebKeySet());
     }
 }
