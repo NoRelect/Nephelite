@@ -1,6 +1,7 @@
-demo: false
-
 replicaCount: 1
+
+nephelite:
+  host: "example.com"
 
 image:
   repository: ghcr.io/norelect/nephelite

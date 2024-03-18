@@ -10,6 +10,7 @@ builder.Services.AddFido2(builder.Configuration.GetSection("Fido2Config"));
 var app = builder.Build();
 
 app.UseHttpsRedirection();
+app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapControllers();
 

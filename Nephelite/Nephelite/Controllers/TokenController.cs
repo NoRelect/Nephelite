@@ -98,7 +98,7 @@ public class TokenController : ControllerBase
         }
 
         var claims = validationResult.Claims;
-        var sessionInformation = JsonSerializer.Deserialize<SessionInformation>((string)claims["session_info"])!;
+        var sessionInformation = JsonSerializer.Deserialize<AuthorizationSessionInformation>((string)claims["session_info"])!;
 
         if (request.RedirectUri != null && (sessionInformation.AuthorizationRequest.RedirectUri != request.RedirectUri ||
             !client.RedirectUris.Contains(request.RedirectUri)))

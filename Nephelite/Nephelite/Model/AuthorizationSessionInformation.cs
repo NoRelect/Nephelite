@@ -1,6 +1,6 @@
 namespace Nephelite.Model;
 
-public class SessionInformation
+public class AuthorizationSessionInformation
 {
     public AuthorizationRequest AuthorizationRequest { get; set; } = default!;
     

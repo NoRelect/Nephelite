@@ -26,6 +26,5 @@ public class V1UserCredential
     public byte[] CredentialId { get; set; } = default!;
     
     [JsonPropertyName("publicKey")]
-    [JsonConverter(typeof(Base64UrlConverter))]
     public byte[] PublicKey { get; set; } = default!;
 }

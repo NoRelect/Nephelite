@@ -52,6 +52,9 @@ spec:
           {{- with .Values.volumeMounts }}
           volumeMounts:
             {{- toYaml . | nindent 12 }}
+            - name: {{ include "Nephelite.fullname" . }}-appsettings
+              mountPath: /app/appsettings.json
+              subPath: appsettings.json
           {{- end }}
       {{- with .Values.volumes }}
       volumes:

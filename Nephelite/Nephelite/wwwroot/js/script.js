@@ -103,3 +103,46 @@ function authenticate(session, options) {
         alert("Something went wrong: " + e);
     });
 }
+
+function register(){
+    registerAsync().then(() => {
+        console.log("Registration complete");
+    })
+}
+
+async function registerAsync() {
+    let username = document.getElementById("username").value;
+    let registrationResponse = await fetch("/registrationOptions?username="+encodeURIComponent(username));
+    let registrationJson = await registrationResponse.json();
+    let session = registrationJson["session"];
+    let options = registrationJson["options"];
+    options.challenge = coerceToArrayBuffer(options.challenge);
+    options.user.id = coerceToArrayBuffer(options.user.id);
+    options.excludeCredentials = options.excludeCredentials.map((c) => {
+        c.id = coerceToArrayBuffer(c.id);
+        return c;
+    });
+    if (options.authenticatorSelection.authenticatorAttachment === null)
+        options.authenticatorSelection.authenticatorAttachment = undefined;
+    let credential = await navigator.credentials.create({ publicKey: options })
+    let attestationObject = new Uint8Array(credential.response.attestationObject);
+    let clientDataJSON = new Uint8Array(credential.response.clientDataJSON);
+    let rawId = new Uint8Array(credential.rawId);
+    const data = {
+        id: credential.id,
+        rawId: coerceToBase64Url(rawId),
+        type: credential.type,
+        response: {
+            attestationObject: coerceToBase64Url(attestationObject),
+            clientDataJSON: coerceToBase64Url(clientDataJSON)
+        }
+    };
+    let yamlResponse = await fetch("/register", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: "session="+encodeURIComponent(session) + "&response=" + encodeURIComponent(JSON.stringify(data)),
+    });
+    document.getElementById("yaml").innerText = await yamlResponse.text();
+}

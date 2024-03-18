@@ -24,18 +24,6 @@ public class AuthorizationController : ControllerBase
         _logger = logger;
     }
     
-    // Testing done with the following url:
-    // https://localhost:7096/authorize?scope=openid&client_id=test&redirect_uri=https://localhost:5000&response_type=id_token%20token&nonce=once
-    // docker run --rm -it --net host quay.io/oauth2-proxy/oauth2-proxy:latest \
-    //     --provider oidc \
-    //     --oidc-issuer-url=https://localhost:7096 \
-    //     --client-id test \
-    //     --client-secret secret \
-    //     --redirect-url http://localhost:4180/oauth2/callback \
-    //     --cookie-secret=W46ZL6Vk-CSsbsTX3UgHqtXG4ffUPkNnNjEvJCvuS_4= \
-    //     --email-domain=* \
-    //     --ssl-insecure-skip-verify \
-    //     --cookie-secure=false
     [HttpGet]
     public async Task<IActionResult> PromptAuthentication([FromQuery] AuthorizationRequest request,
         CancellationToken cancellationToken)
@@ -98,7 +86,7 @@ public class AuthorizationController : ControllerBase
             }).ToList();
         var assertionOptions = _fido2.GetAssertionOptions(
             existingCredentials,
-            UserVerificationRequirement.Preferred,
+            UserVerificationRequirement.Required,
             new AuthenticationExtensionsClientInputs
             {
                 Extensions = true,
@@ -106,7 +94,7 @@ public class AuthorizationController : ControllerBase
             }
         );
 
-        var session = _keyService.EncryptSession(JsonSerializer.Serialize(new SessionInformation
+        var session = _keyService.EncryptSession(JsonSerializer.Serialize(new AuthorizationSessionInformation
         {
             AuthorizationRequest = request,
             AssertionOptions = assertionOptions,
@@ -114,13 +102,13 @@ public class AuthorizationController : ControllerBase
         }));
         var content = $"""
                        <!DOCTYPE html>
-                       <html>
+                       <html lang="en">
                            <head>
                                <title>Nephelite</title>
                                <link rel="stylesheet" href="css/style.css" />
                            </head>
                            <body>
-                               <img src="img/logo.png" alt="Nephelite Logo"> 
+                               <img class="logo" src="img/logo.png" alt="Nephelite Logo"> 
                                <script type="text/javascript" src="js/script.js"></script>
                                <script type="text/javascript">
                                    let session = "{session}";
@@ -150,7 +138,7 @@ public class AuthorizationController : ControllerBase
         }
 
         var decryptedSession = _keyService.DecryptSession(session);
-        var sessionInformation = JsonSerializer.Deserialize<SessionInformation>(decryptedSession);
+        var sessionInformation = JsonSerializer.Deserialize<AuthorizationSessionInformation>(decryptedSession);
         if (sessionInformation == null)
         {
             HttpContext.Response.StatusCode = 400;
