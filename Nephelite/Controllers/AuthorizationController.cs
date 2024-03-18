@@ -242,14 +242,20 @@ public class AuthorizationController : ControllerBase
         switch (request.ResponseType)
         {
             case "code":
-                uriBuilder.Query = $"code={authorizationCode}&state={UrlEncoder.Default.Encode(request.State)}";
+                uriBuilder.Query = $"code={authorizationCode}&state={UrlEncoder.Default.Encode(request.State ?? "")}";
                 return Redirect(uriBuilder.Uri.ToString());
             case "id_token token":
-                uriBuilder.Fragment = $"access_token={accessToken}&token_type=Bearer&id_token={idToken}" +
-                                      $"&state={UrlEncoder.Default.Encode(request.State)}&expires_in={expiresIn}&nonce={UrlEncoder.Default.Encode(request.Nonce)}";
+                uriBuilder.Fragment = $"access_token={UrlEncoder.Default.Encode(accessToken)}" +
+                                      $"&token_type=Bearer"+
+                                      $"&id_token={UrlEncoder.Default.Encode(idToken)}" +
+                                      $"&state={UrlEncoder.Default.Encode(request.State ?? "")}" +
+                                      $"&expires_in={expiresIn}" +
+                                      $"&nonce={UrlEncoder.Default.Encode(request.Nonce ?? "")}";
                 return Redirect(uriBuilder.Uri.ToString());
             case "id_token":
-                uriBuilder.Fragment = $"id_token={idToken}&state={UrlEncoder.Default.Encode(request.State)}&expires_in={expiresIn}";
+                uriBuilder.Fragment = $"id_token={UrlEncoder.Default.Encode(idToken)}" +
+                                      $"&state={UrlEncoder.Default.Encode(request.State ?? "")}" +
+                                      $"&expires_in={expiresIn}";
                 return Redirect(uriBuilder.Uri.ToString());
             default:
                 _logger.LogWarning("Invalid response type used: {ResponseType}", request.ResponseType);
@@ -270,7 +276,7 @@ public class AuthorizationController : ControllerBase
     {
         var uriBuilder = new UriBuilder(new Uri(request.RedirectUri!))
         {
-            Query = $"error={error}&state={UrlEncoder.Default.Encode(request.State)}",
+            Query = $"error={error}&state={UrlEncoder.Default.Encode(request.State ?? "")}",
         };
         return Redirect(uriBuilder.Uri.ToString());
     }
