@@ -56,16 +56,16 @@ spec:
               mountPath: /app/appsettings.json
               subPath: appsettings.json
           {{- end }}
-      {{- with .Values.volumes }}
       volumes:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
         - name: appsettings
           configMap:
             name: {{ include "Nephelite.fullname" . }}-appsettings
             items:
               - key: appsettings.json
                 path: appsettings.json
+      {{- with .Values.volumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
