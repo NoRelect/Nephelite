@@ -1,12 +1,12 @@
 namespace Nephelite.Controllers;
 
 [ApiController]
-[Route("/jwks")]
-public class JwksController : ControllerBase
+[Route("/keys")]
+public class KeysController : ControllerBase
 {
     private readonly KeyService _keyService;
 
-    public JwksController(KeyService keyService)
+    public KeysController(KeyService keyService)
     {
         _keyService = keyService;
     }

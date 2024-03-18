@@ -1,5 +1,3 @@
-using System.Text.Encodings.Web;
-
 namespace Nephelite.Controllers;
 
 [ApiController]
@@ -7,22 +5,22 @@ namespace Nephelite.Controllers;
 public class AuthorizationController : ControllerBase
 {
     private readonly IFido2 _fido2;
-    private readonly IOptionsSnapshot<PublicKeyCredentialsConfiguration> _publicKeyCredentials;
-    private readonly IOptionsSnapshot<ClientConfiguration> _clients;
+    private readonly KubernetesService _kubernetesService;
     private readonly KeyService _keyService;
+    private readonly NepheliteConfiguration _nepheliteConfiguration;
     private readonly ILogger<AuthorizationController> _logger;
 
     public AuthorizationController(
         IFido2 fido2,
-        IOptionsSnapshot<PublicKeyCredentialsConfiguration> publicKeyCredentials,
-        IOptionsSnapshot<ClientConfiguration> clients,
+        KubernetesService kubernetesService,
         KeyService keyService,
+        IOptions<NepheliteConfiguration> nepheliteConfiguration,
         ILogger<AuthorizationController> logger)
     {
         _fido2 = fido2;
-        _publicKeyCredentials = publicKeyCredentials;
-        _clients = clients;
+        _kubernetesService = kubernetesService;
         _keyService = keyService;
+        _nepheliteConfiguration = nepheliteConfiguration.Value;
         _logger = logger;
     }
     
@@ -39,9 +37,11 @@ public class AuthorizationController : ControllerBase
     //     --ssl-insecure-skip-verify \
     //     --cookie-secure=false
     [HttpGet]
-    public IActionResult PromptAuthentication([FromQuery] AuthorizationRequest request)
+    public async Task<IActionResult> PromptAuthentication([FromQuery] AuthorizationRequest request,
+        CancellationToken cancellationToken)
     {
-        var client = _clients.Value.Clients.FirstOrDefault(c => c.ClientId == request.ClientId);
+        var clients = await _kubernetesService.GetClients(cancellationToken);
+        var client = clients.FirstOrDefault(c => c.ClientId == request.ClientId);
         if (client == null)
         {
             _logger.LogWarning("Request used an invalid client id: '{ClientId}'", request.ClientId);
@@ -50,7 +50,7 @@ public class AuthorizationController : ControllerBase
         }
         
         if (string.IsNullOrEmpty(request.RedirectUri) ||
-            !client.RedirectUrls.Contains(request.RedirectUri))
+            !client.RedirectUris.Contains(request.RedirectUri))
         {
             _logger.LogWarning("Request used an invalid redirect uri: '{RedirectUri}'", request.RedirectUri);
             HttpContext.Response.StatusCode = 400;
@@ -87,8 +87,10 @@ public class AuthorizationController : ControllerBase
             // We do not keep track of who is logged in or not, so we always return the "not logged in" state
             return RedirectWithError(request, "login_required");
         }
-        
-        var existingCredentials = _publicKeyCredentials.Value.Credentials
+
+        var users = await _kubernetesService.GetUsers(cancellationToken);
+        var existingCredentials = users
+            .SelectMany(u => u.Credentials)
             .Select(c => new PublicKeyCredentialDescriptor
             {
                 Id = c.CredentialId,
@@ -158,20 +160,21 @@ public class AuthorizationController : ControllerBase
         var request = sessionInformation.AuthorizationRequest;
 
         var elapsedTime = DateTime.UtcNow.Subtract(sessionInformation.RequestStart);
-        if (elapsedTime.TotalMinutes is < 0 or > 5)
+        if (elapsedTime.TotalMinutes is < 0 or > 1)
         {
             _logger.LogWarning("Received request that has expired");
             HttpContext.Response.StatusCode = 400;
             return new JsonResult(new {Error = "Request expired"});
         }
-        
-        var cred = _publicKeyCredentials.Value.Credentials
+
+        var users = await _kubernetesService.GetUsers(cancellationToken);
+        var cred = users.SelectMany(u => u.Credentials)
                 .First(c => c.CredentialId.SequenceEqual(clientResponse.Id));
 
         try
         {
             await _fido2.MakeAssertionAsync(
-                clientResponse, sessionInformation.AssertionOptions, cred.PublicKey, 0, Callback,
+                clientResponse, sessionInformation.AssertionOptions, cred.PublicKey, 0, CheckCredentialBelongsToCorrectUser,
                 cancellationToken: cancellationToken);
         }
         catch (Exception ex)
@@ -179,25 +182,35 @@ public class AuthorizationController : ControllerBase
             _logger.LogWarning("Authentication failed: {Exception}", ex);
             return RedirectWithError(request, "access_denied");
         }
+
+        var user = users.First(u => u.Credentials
+            .Any(c => c.CredentialId.SequenceEqual(clientResponse.Id)));
+        var claims = new Dictionary<string, object?>
+        {
+            { "sub", user.Username },
+            { "email", user.Email },
+            { "groups", user.Groups }
+        };
         
         // Create OpenID spec compliant response with either
         // an authorization code, an id_token or an access token or a combination
-        var expiryDate = sessionInformation.RequestStart
-            .Add(TimeSpan.FromMinutes(5));
+
+        var clients = await _kubernetesService.GetClients(cancellationToken);
+        var client = clients.First(c => c.ClientId == sessionInformation.AuthorizationRequest.ClientId);
+        var tokenLifetime = client.TokenLifetime ?? _nepheliteConfiguration.DefaultTokenLifetime;
+        
+        var expiryDate = sessionInformation.RequestStart.Add(tokenLifetime);
         var expiresIn = (int)expiryDate.Subtract(DateTime.UtcNow).TotalSeconds;
         var jwtHandler = new JsonWebTokenHandler();
         var nonce = sessionInformation.AuthorizationRequest.Nonce;
+        var idpUrl = $"https://{_nepheliteConfiguration.Host}";
         var accessTokenDescriptor = new SecurityTokenDescriptor
         {
-            Issuer = "https://localhost:7096",
-            Audience = "https://localhost:7096",
+            Issuer = idpUrl,
+            Audience = idpUrl,
             IssuedAt = sessionInformation.RequestStart,
             Expires = expiryDate,
-            Claims = new Dictionary<string, object?>
-            {
-                { "sub", "test" },
-                { "email", "test@test.test" }
-            },
+            Claims = claims,
             SigningCredentials = _keyService.GetSigningCredentials(),
             EncryptingCredentials = _keyService.GetAccessTokenEncryptingCredentials()
         };
@@ -206,15 +219,11 @@ public class AuthorizationController : ControllerBase
         var accessToken = jwtHandler.CreateToken(accessTokenDescriptor);
         var idTokenDescriptor = new SecurityTokenDescriptor
         {
-            Issuer = "https://localhost:7096",
+            Issuer = idpUrl,
             Audience = request.ClientId,
             IssuedAt = sessionInformation.RequestStart,
             Expires = expiryDate,
-            Claims = new Dictionary<string, object?>
-            {
-                { "sub", "test" },
-                { "email", "test@test.test" }
-            },
+            Claims = claims,
             SigningCredentials = _keyService.GetSigningCredentials(),
             EncryptingCredentials = null
         };
@@ -227,8 +236,8 @@ public class AuthorizationController : ControllerBase
 
         var authorizationCode = jwtHandler.CreateToken(new SecurityTokenDescriptor
         {
-            Issuer = "https://localhost:7096",
-            Audience = "https://localhost:7096",
+            Issuer = idpUrl,
+            Audience = idpUrl,
             IssuedAt = sessionInformation.RequestStart,
             Expires = expiryDate,
             Claims = new Dictionary<string, object>
@@ -259,10 +268,14 @@ public class AuthorizationController : ControllerBase
                 HttpContext.Response.StatusCode = 400;
                 return new JsonResult(new { Error = "Invalid response type"});
         }
-        async Task<bool> Callback(IsUserHandleOwnerOfCredentialIdParams args, CancellationToken cancellation)
-        {
-            return await Task.FromResult(true);
-        }
+    }
+
+    private async Task<bool> CheckCredentialBelongsToCorrectUser(IsUserHandleOwnerOfCredentialIdParams args,
+        CancellationToken cancellationToken)
+    {
+        var users = await _kubernetesService.GetUsers(cancellationToken);
+        var user = users.FirstOrDefault(u => Encoding.UTF8.GetBytes(u.Username).SequenceEqual(args.UserHandle));
+        return user != null && user.Credentials.Any(c => c.CredentialId.SequenceEqual(args.CredentialId));
     }
 
     private RedirectResult RedirectWithError(AuthorizationRequest request, string error)

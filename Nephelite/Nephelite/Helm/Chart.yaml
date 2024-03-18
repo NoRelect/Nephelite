@@ -1,0 +1,6 @@
+apiVersion: v2
+name: Nephelite
+description: A passkey based IdP
+type: application
+version: 0.1.0
+appVersion: "latest"

@@ -5,21 +5,24 @@ namespace Nephelite.Controllers;
 public class TokenController : ControllerBase
 {
     private readonly KeyService _keyService;
-    private readonly IOptionsSnapshot<ClientConfiguration> _clients;
+    private readonly KubernetesService _kubernetesService;
+    private readonly NepheliteConfiguration _nepheliteConfiguration;
     private readonly ILogger<TokenController> _logger;
 
     public TokenController(
         KeyService keyService,
-        IOptionsSnapshot<ClientConfiguration> clients,
+        KubernetesService kubernetesService,
+        IOptions<NepheliteConfiguration> nepheliteConfiguration,
         ILogger<TokenController> logger)
     {
         _keyService = keyService;
-        _clients = clients;
+        _kubernetesService = kubernetesService;
+        _nepheliteConfiguration = nepheliteConfiguration.Value;
         _logger = logger;
     }
 
     [HttpPost]
-    public async Task<IActionResult> Post([FromForm] TokenRequest request)
+    public async Task<IActionResult> Post([FromForm] TokenRequest request, CancellationToken cancellationToken)
     {
         HttpContext.Response.Headers.CacheControl = "no-store";
         HttpContext.Response.Headers.Pragma = "no-cache";
@@ -42,7 +45,10 @@ public class TokenController : ControllerBase
             clientId = request.ClientId;
             clientSecret = request.ClientSecret;
         }
-        if (!_clients.Value.Clients.Any(c => c.ClientId == clientId && c.ClientSecret == clientSecret))
+
+        var clients = await _kubernetesService.GetClients(cancellationToken);
+        var client = clients.FirstOrDefault(c => c.ClientId == clientId && c.ClientSecret == clientSecret);
+        if (client == null)
         {
             HttpContext.Response.StatusCode = 401;
             HttpContext.Response.Headers.WWWAuthenticate = "Basic realm=Nephelite, charset=\"UTF-8\"";
@@ -54,7 +60,6 @@ public class TokenController : ControllerBase
             });
         }
 
-        var client = _clients.Value.Clients.First(c => c.ClientId == clientId && c.ClientSecret == clientSecret);
         if (request.Code == null)
         {
             HttpContext.Response.StatusCode = 400;
@@ -67,10 +72,11 @@ public class TokenController : ControllerBase
         }
 
         var jwtHandler = new JsonWebTokenHandler();
+        var idpUrl = $"https://{_nepheliteConfiguration.Host}";
         var validationResult = await jwtHandler.ValidateTokenAsync(request.Code, new TokenValidationParameters
         {
-            ValidIssuer = "https://localhost:7096",
-            ValidAudience = "https://localhost:7096",
+            ValidIssuer = idpUrl,
+            ValidAudience = idpUrl,
             IssuerSigningKey = _keyService.GetSigningCredentials().Key,
             TokenDecryptionKey = _keyService.GetAuthorizationCodeEncryptingCredentials().Key,
             RequireAudience = true,
@@ -95,7 +101,7 @@ public class TokenController : ControllerBase
         var sessionInformation = JsonSerializer.Deserialize<SessionInformation>((string)claims["session_info"])!;
 
         if (request.RedirectUri != null && (sessionInformation.AuthorizationRequest.RedirectUri != request.RedirectUri ||
-            !client.RedirectUrls.Contains(request.RedirectUri)))
+            !client.RedirectUris.Contains(request.RedirectUri)))
         {
             HttpContext.Response.StatusCode = 400;
             _logger.LogWarning("Token request contained invalid redirect uri: {RedirectUri}", request.RedirectUri);
@@ -105,13 +111,14 @@ public class TokenController : ControllerBase
                 ErrorDescription = "Invalid redirect uri"
             });
         }
-        
+
+        var tokenLifetime = client.TokenLifetime ?? _nepheliteConfiguration.DefaultTokenLifetime; 
         return new JsonResult(new SucessfulTokenResponse
         {
             TokenType = "Bearer",
             AccessToken = (string)claims["access_token"],
             IdToken = (string)claims["id_token"],
-            ExpiresIn = (int)sessionInformation.RequestStart.Add(TimeSpan.FromMinutes(5)).Subtract(DateTime.UtcNow).TotalSeconds,
+            ExpiresIn = (int)sessionInformation.RequestStart.Add(tokenLifetime).Subtract(DateTime.UtcNow).TotalSeconds,
             RefreshToken = null
         });
     }

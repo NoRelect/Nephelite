@@ -1,0 +1,27 @@
+{{ if .Values.demo }}
+apiVersion: nephelite.norelect.ch/v1
+kind: Client
+metadata:
+  name: oauth2-proxy
+spec:
+  clientId: "test"
+  clientSecret: "secret"
+  confidential: true
+  redirectUris:
+    - "https://localhost:5000"
+    - "http://localhost:4180/oauth2/callback"
+---
+apiVersion: nephelite.norelect.ch/v1
+kind: User
+metadata:
+  name: test
+spec:
+  username: "test"
+  email: "test@test.test"
+  groups:
+    - "admins"
+  credentials:
+    - credentialId: "Rn0xWtlk8TmUPS9MsQBYKNRdy/U8ugkq490I6cTETz7cyHGnTDFXnzFpB7UYDE7zDWVlpejBK6ElIYPtlM8d2g==",
+      publicKey: "pQECAyYgASFYIIXVvYN3YeWJ1J-IueiaFoL_4p-EfS8ofMznDulVZzwkIlggCXZ86XNEJGGHsDKC7p94e6aa7IA9SngTQNo6fNECbsc"
+}
+{{ end }}

@@ -5,17 +5,11 @@ namespace Nephelite.Controllers;
 public class WebAuthnController : ControllerBase
 {
     private readonly IFido2 _fido2;
-    private readonly IOptionsSnapshot<PublicKeyCredentialsConfiguration> _publicKeyCredentials;
-    private readonly ILogger<WebAuthnController> _logger;
 
     public WebAuthnController(
-        IFido2 fido2,
-        IOptionsSnapshot<PublicKeyCredentialsConfiguration> publicKeyCredentials,
-        ILogger<WebAuthnController> logger)
+        IFido2 fido2)
     {
         _fido2 = fido2;
-        _publicKeyCredentials = publicKeyCredentials;
-        _logger = logger;
     }
     
     [HttpGet]
@@ -55,14 +49,8 @@ public class WebAuthnController : ControllerBase
             Name = username,
             DisplayName = username,
         };
-        var existingCredentials = _publicKeyCredentials.Value.Credentials
-            .Select(c => new PublicKeyCredentialDescriptor
-            {
-                Id = c.CredentialId,
-                Type = PublicKeyCredentialType.PublicKey,
-            }).ToList();
         var credentialCreateOptions = _fido2.RequestNewCredential(user,
-            existingCredentials,
+            new List<PublicKeyCredentialDescriptor>(),
             new AuthenticatorSelection
             {
                 UserVerification = UserVerificationRequirement.Preferred,
@@ -85,50 +73,6 @@ public class WebAuthnController : ControllerBase
         return new JsonResult(success);
 
         async Task<bool> Callback(IsCredentialIdUniqueToUserParams args, CancellationToken cancellation)
-        {
-            return await Task.FromResult(true);
-        }
-    }
-    
-    [HttpPost]
-    [Route("authenticationOptions")]
-    public JsonResult GetAuthenticationOptions()
-    {
-        var existingCredentials = _publicKeyCredentials.Value.Credentials
-            .Select(c => new PublicKeyCredentialDescriptor
-            {
-                Id = c.CredentialId,
-                Type = PublicKeyCredentialType.PublicKey,
-            }).ToList();
-        var options = _fido2.GetAssertionOptions(
-            existingCredentials,
-            UserVerificationRequirement.Preferred,
-            new AuthenticationExtensionsClientInputs
-            {
-                Extensions = true,
-                UserVerificationMethod = true
-            }
-        );
-
-        HttpContext.Session.SetString("fido2.assertionOptions", options.ToJson());
-        return new JsonResult(options);
-    }
-    
-    [HttpPost]
-    [Route("authenticate")]
-    public async Task<JsonResult> Authenticate(AuthenticatorAssertionRawResponse clientResponse, CancellationToken cancellationToken)
-    {
-        var jsonOptions = HttpContext.Session.GetString("fido2.assertionOptions");
-        var options = AssertionOptions.FromJson(jsonOptions);
-        var cred = _publicKeyCredentials.Value.Credentials
-                .First(c => c.CredentialId.SequenceEqual(clientResponse.Id));
-
-        var result = await _fido2.MakeAssertionAsync(
-            clientResponse, options, cred.PublicKey, 0, Callback, cancellationToken: cancellationToken);
-
-        return new JsonResult(result);
-
-        async Task<bool> Callback(IsUserHandleOwnerOfCredentialIdParams args, CancellationToken cancellation)
         {
             return await Task.FromResult(true);
         }
