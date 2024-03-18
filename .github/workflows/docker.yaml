@@ -1,0 +1,26 @@
+name: Docker Image CI
+on:
+  push:
+    branches: [ "main" ]
+    tags:
+      - v*
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checkout repository"
+        uses: actions/checkout@v3
+      - name: "Login to registry"
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u $ --password-stdin
+      - name: "Build nephelite image"
+        run: docker build . --file Nephelite/Nephelite/Dockerfile --tag nephelite --label "runnumber=${GITHUB_RUN_ID}"
+      - name: "Push nephelite image"
+        run: |
+          IMAGE_ID=ghcr.io/norelect/nephelite
+          VERSION=$(echo "${{ github.ref }}" | sed -e 's,.*/\(.*\),\1,')
+          [[ "${{ github.ref }}" == "refs/tags/"* ]] && VERSION=$(echo $VERSION | sed -e 's/^v//')
+          [ "$VERSION" == "main" ] && VERSION=latest
+          echo IMAGE_ID=$IMAGE_ID
+          echo VERSION=$VERSION
+          docker tag nephelite $IMAGE_ID:$VERSION
+          docker push $IMAGE_ID:$VERSION
