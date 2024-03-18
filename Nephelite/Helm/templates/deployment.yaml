@@ -49,12 +49,12 @@ spec:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- with .Values.volumeMounts }}
           volumeMounts:
-            {{- toYaml . | nindent 12 }}
             - name: appsettings
               mountPath: /app/appsettings.json
               subPath: appsettings.json
+          {{- with .Values.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
           {{- end }}
       volumes:
         - name: appsettings
