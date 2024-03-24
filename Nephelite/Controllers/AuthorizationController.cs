@@ -78,7 +78,7 @@ public class AuthorizationController : ControllerBase
         
         var assertionOptions = _fido2.GetAssertionOptions(
             new List<PublicKeyCredentialDescriptor>(),
-            UserVerificationRequirement.Preferred,
+            UserVerificationRequirement.Required,
             new AuthenticationExtensionsClientInputs
             {
                 Extensions = true,

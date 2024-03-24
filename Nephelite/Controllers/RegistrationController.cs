@@ -45,7 +45,7 @@ public class RegistrationController : ControllerBase
             existingCredentials,
             new AuthenticatorSelection
             {
-                UserVerification = UserVerificationRequirement.Preferred,
+                UserVerification = UserVerificationRequirement.Required,
                 RequireResidentKey = true
             }, AttestationConveyancePreference.None);
         return new JsonResult(new
