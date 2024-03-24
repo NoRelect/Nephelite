@@ -75,25 +75,16 @@ public class AuthorizationController : ControllerBase
             // We do not keep track of who is logged in or not, so we always return the "not logged in" state
             return RedirectWithError(request, "login_required");
         }
-
-        var users = await _kubernetesService.GetUsers(cancellationToken);
-        var existingCredentials = users
-            .SelectMany(u => u.Credentials)
-            .Select(c => new PublicKeyCredentialDescriptor
-            {
-                Id = c.CredentialId,
-                Type = PublicKeyCredentialType.PublicKey,
-            }).ToList();
+        
         var assertionOptions = _fido2.GetAssertionOptions(
-            existingCredentials,
-            UserVerificationRequirement.Required,
+            new List<PublicKeyCredentialDescriptor>(),
+            UserVerificationRequirement.Preferred,
             new AuthenticationExtensionsClientInputs
             {
                 Extensions = true,
                 UserVerificationMethod = true
             }
         );
-
         var session = _keyService.EncryptSession(JsonSerializer.Serialize(new AuthorizationSessionInformation
         {
             AuthorizationRequest = request,
