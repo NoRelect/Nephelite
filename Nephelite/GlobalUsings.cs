@@ -1,6 +1,5 @@
 global using Fido2NetLib;
 global using Fido2NetLib.Objects;
-global using Json.Patch;
 global using k8s;
 global using k8s.Autorest;
 global using k8s.Models;

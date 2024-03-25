@@ -44,10 +44,10 @@ public class KubernetesService
             .ToList();
     }
 
-    public async Task PatchUser(string name, object body, CancellationToken cancellationToken)
+    public async Task ReplaceUserStatus(string name, V1UserStatus status, CancellationToken cancellationToken)
     {
-        await _kubernetes.PatchNamespacedCustomObjectStatusAsync(
-            new V1Patch(body, V1Patch.PatchType.JsonPatch),
+        await _kubernetes.ReplaceNamespacedCustomObjectStatusAsync<V1UserStatus>(
+            status,
             CrdGroupName,
             CrdVersion,
             _namespace,

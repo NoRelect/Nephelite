@@ -183,12 +183,10 @@ public class AuthorizationController : ControllerBase
             _logger.LogWarning("Authentication failed: {Exception}", ex);
             return RedirectWithError(request, "access_denied");
         }
-
-        var old = JsonSerializer.SerializeToDocument(user.Status);
+        
         user.Status ??= new V1UserStatus();
         user.Status.SignatureCounters[hexCredentialId] = result.Counter;
-        var patched = JsonSerializer.SerializeToDocument(user.Status);
-        await _kubernetesService.PatchUser(user.Name(), old.CreatePatch(patched), cancellationToken);
+        await _kubernetesService.ReplaceUserStatus(user.Name(), user.Status, cancellationToken);
         
         var commonClaims = new Dictionary<string, object?>
         {
