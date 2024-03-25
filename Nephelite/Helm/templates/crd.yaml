@@ -33,6 +33,26 @@ spec:
                         type: string
                       publicKey:
                         type: string
+            status:
+              type: object
+              properties:
+                signatureCounters:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                lastAuthentication:
+                  type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Username
+          type: string
+          jsonPath: .spec.username
+        - name: Email
+          type: string
+          jsonPath: .spec.email
+        - name: Last Login
+          type: string
+          jsonPath: .status.lastAuthentication
   scope: Namespaced
   names:
     plural: users

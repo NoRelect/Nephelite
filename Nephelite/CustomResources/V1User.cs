@@ -33,4 +33,7 @@ public class V1UserStatus
 {
     [JsonPropertyName("signatureCounters")]
     public Dictionary<string, uint> SignatureCounters { get; set; } = new();
+
+    [JsonPropertyName("lastAuthentication")]
+    public DateTime LastAuthentication { get; set; }
 }

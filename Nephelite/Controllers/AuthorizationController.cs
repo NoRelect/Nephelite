@@ -185,6 +185,7 @@ public class AuthorizationController : ControllerBase
         }
         
         user.Status ??= new V1UserStatus();
+        user.Status.LastAuthentication = DateTime.UtcNow;
         user.Status.SignatureCounters[hexCredentialId] = result.Counter;
         await _kubernetesService.ReplaceUserStatus(user.Name(), user.Status, cancellationToken);
         
