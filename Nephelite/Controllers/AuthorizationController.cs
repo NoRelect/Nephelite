@@ -164,8 +164,8 @@ public class AuthorizationController : ControllerBase
 
         var hexCredentialId = Convert.ToHexString(cred.CredentialId);
         var user = users.First(u => u.Spec.Credentials.Any(c => c == cred));
-        var storedSignatureCounter = user.Status.SignatureCounters
-                .GetValueOrDefault(hexCredentialId, 0u);
+        var storedSignatureCounter = user.Status?.SignatureCounters
+                .GetValueOrDefault(hexCredentialId, 0u) ?? 0u;
 
         AssertionVerificationResult result;
         try
@@ -185,6 +185,7 @@ public class AuthorizationController : ControllerBase
         }
 
         var old = JsonSerializer.SerializeToDocument(user.Status);
+        user.Status ??= new V1UserStatus();
         user.Status.SignatureCounters[hexCredentialId] = result.Counter;
         var patched = JsonSerializer.SerializeToDocument(user.Status);
         await _kubernetesService.PatchUser(user.Name(), old.CreatePatch(patched), cancellationToken);
