@@ -1,6 +1,6 @@
 namespace Nephelite.CustomResources;
 
-public class V1User : CustomResource<V1UserSpec>
+public class V1User : CustomResource<V1UserSpec, V1UserStatus>
 {
     
 }
@@ -27,4 +27,10 @@ public class V1UserCredential
     
     [JsonPropertyName("publicKey")]
     public byte[] PublicKey { get; set; } = default!;
+}
+
+public class V1UserStatus
+{
+    [JsonPropertyName("signatureCounters")]
+    public Dictionary<string, uint> SignatureCounters { get; set; } = new();
 }

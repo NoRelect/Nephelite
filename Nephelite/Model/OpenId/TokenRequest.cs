@@ -1,4 +1,4 @@
-namespace Nephelite.Model;
+namespace Nephelite.Model.OpenId;
 
 public class TokenRequest
 {

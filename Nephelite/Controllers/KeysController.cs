@@ -12,8 +12,11 @@ public class KeysController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult Get()
+    public async Task<IActionResult> Get(CancellationToken cancellationToken)
     {
-        return new JsonResult(_keyService.GetPublicJsonWebKeySet());
+        var keyMaterial = await _keyService.GetKeyMaterial(cancellationToken);
+        var keys = new JsonWebKeySet();
+        keys.Keys.Add(keyMaterial.SigningPublicKey);
+        return new JsonResult(keys);
     }
 }

@@ -1,6 +1,7 @@
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<KeyService>();
 builder.Services.AddSingleton<KubernetesService>();
 builder.Services.Configure<NepheliteConfiguration>(builder.Configuration.GetSection("Nephelite"));

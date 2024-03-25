@@ -7,6 +7,7 @@ public class KubernetesService
     private const string CrdVersion = "v1";
     private const string CrdClientPlural = "clients";
     private const string CrdUserPlural = "users";
+    private const string KeySecretName = "nephelite-keys";
     
     private readonly Kubernetes _kubernetes;
     private readonly string _namespace;
@@ -31,7 +32,7 @@ public class KubernetesService
             .ToList();
     }
     
-    public async Task<List<V1UserSpec>> GetUsers(CancellationToken cancellationToken)
+    public async Task<List<V1User>> GetUsers(CancellationToken cancellationToken)
     {
         var clientList = await _kubernetes.ListNamespacedCustomObjectAsync<CustomResourceList<V1User>>(
             CrdGroupName,
@@ -40,7 +41,43 @@ public class KubernetesService
             CrdUserPlural,
             cancellationToken: cancellationToken);
         return clientList.Items
-            .Select(c => c.Spec)
             .ToList();
+    }
+
+    public async Task PatchUser(string name, object body, CancellationToken cancellationToken)
+    {
+        await _kubernetes.PatchNamespacedCustomObjectStatusAsync(
+            new V1Patch(body, V1Patch.PatchType.JsonPatch),
+            CrdGroupName,
+            CrdVersion,
+            _namespace,
+            CrdUserPlural,
+            name,
+            cancellationToken: cancellationToken);
+    }
+
+    public async Task<IDictionary<string, byte[]>?> GetSecret(CancellationToken cancellationToken)
+    {
+        var secret = await _kubernetes.ReadNamespacedSecretAsync(
+            KeySecretName,
+            _namespace,
+            cancellationToken: cancellationToken);
+        return secret.Data;
+    }
+
+    public async Task CreateImmutableSecret(IDictionary<string, byte[]> data, CancellationToken cancellationToken)
+    {
+        var secret = new V1Secret
+        {
+            Metadata = new V1ObjectMeta
+            {
+                Name = KeySecretName,
+                NamespaceProperty = _namespace
+            },
+            Immutable = true,
+            Type = "Opaque",
+            Data = data
+        };
+        await _kubernetes.CreateNamespacedSecretAsync(secret, _namespace, cancellationToken: cancellationToken);
     }
 }

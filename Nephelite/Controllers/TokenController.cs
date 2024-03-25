@@ -71,14 +71,15 @@ public class TokenController : ControllerBase
             });
         }
 
+        var keyMaterial = await _keyService.GetKeyMaterial(cancellationToken);
         var jwtHandler = new JsonWebTokenHandler();
         var idpUrl = $"https://{_nepheliteConfiguration.Host}";
         var validationResult = await jwtHandler.ValidateTokenAsync(request.Code, new TokenValidationParameters
         {
             ValidIssuer = idpUrl,
             ValidAudience = idpUrl,
-            IssuerSigningKey = _keyService.GetSigningCredentials().Key,
-            TokenDecryptionKey = _keyService.GetAuthorizationCodeEncryptingCredentials().Key,
+            IssuerSigningKey = keyMaterial.SigningKey.Key,
+            TokenDecryptionKey = keyMaterial.AuthorizationCodeEncryptionKey.Key,
             RequireAudience = true,
             ValidateIssuer = true,
             ValidateAudience = true,
@@ -113,7 +114,7 @@ public class TokenController : ControllerBase
         }
 
         var tokenLifetime = client.TokenLifetime ?? _nepheliteConfiguration.DefaultTokenLifetime; 
-        return new JsonResult(new SucessfulTokenResponse
+        return new JsonResult(new SuccessfulTokenResponse
         {
             TokenType = "Bearer",
             AccessToken = (string)claims["access_token"],

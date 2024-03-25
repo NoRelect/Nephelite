@@ -6,20 +6,17 @@ public class RegistrationController : ControllerBase
 {
     private readonly KubernetesService _kubernetesService;
     private readonly KeyService _keyService;
-    private readonly NepheliteConfiguration _nepheliteConfiguration;
     private readonly IFido2 _fido2;
     private readonly ILogger<RegistrationController> _logger;
 
     public RegistrationController(
         KubernetesService kubernetesService,
         KeyService keyService,
-        IOptions<NepheliteConfiguration> nepheliteConfiguration,
         IFido2 fido2,
         ILogger<RegistrationController> logger)
     {
         _kubernetesService = kubernetesService;
         _keyService = keyService;
-        _nepheliteConfiguration = nepheliteConfiguration.Value;
         _fido2 = fido2;
         _logger = logger;
     }
@@ -28,32 +25,27 @@ public class RegistrationController : ControllerBase
     [Route("registrationOptions")]
     public async Task<IActionResult> GetRegisterOptions([FromQuery] string username, CancellationToken cancellationToken)
     {
-        var users = await _kubernetesService.GetUsers(cancellationToken);
-        var user = users.FirstOrDefault(u => u.Username == username);
-        var existingCredentials = user?.Credentials
-            .Select(c => new PublicKeyCredentialDescriptor
-            {
-                Id = c.CredentialId,
-                Type = PublicKeyCredentialType.PublicKey
-            }).ToList() ?? new List<PublicKeyCredentialDescriptor>();
         var credentialCreateOptions = _fido2.RequestNewCredential(new Fido2User
             {
                 Id = Encoding.UTF8.GetBytes(username),
                 Name = username,
                 DisplayName = username
             },
-            existingCredentials,
+            new List<PublicKeyCredentialDescriptor>(),
             new AuthenticatorSelection
             {
                 UserVerification = UserVerificationRequirement.Required,
                 RequireResidentKey = true
             }, AttestationConveyancePreference.None);
+        var keyMaterial = await _keyService.GetKeyMaterial(cancellationToken);
+        var sessionInfo = new RegistrationSessionInformation
+        {
+            CreateOptions = credentialCreateOptions
+        };
         return new JsonResult(new
         {
-            Session = _keyService.EncryptSession(JsonSerializer.Serialize(new RegistrationSessionInformation
-            {
-                CreateOptions = credentialCreateOptions
-            })),
+            Session = KeyService.Encrypt(keyMaterial.RegisterSessionEncryptionKey,
+                JsonSerializer.Serialize(sessionInfo)),
             Options = credentialCreateOptions
         });
     }
@@ -62,10 +54,12 @@ public class RegistrationController : ControllerBase
     [Route("register")]
     public async Task<IActionResult> RegisterCredential(
         [FromForm] string session,
-        [FromForm] string response)
+        [FromForm] string response,
+        CancellationToken cancellationToken)
     {
+        var keyMaterial = await _keyService.GetKeyMaterial(cancellationToken);
         var sessionInfo = JsonSerializer.Deserialize<RegistrationSessionInformation>(
-            _keyService.DecryptSession(session));
+            KeyService.Decrypt(keyMaterial.RegisterSessionEncryptionKey, session));
         var attestationResponse = JsonSerializer.Deserialize<AuthenticatorAttestationRawResponse>(response);
 
         if (sessionInfo == null || attestationResponse == null)
@@ -78,7 +72,7 @@ public class RegistrationController : ControllerBase
         try
         {
             var result = await _fido2.MakeNewCredentialAsync(attestationResponse, sessionInfo.CreateOptions,
-                CheckIfCredentialIsUniqueToUser);
+                CheckIfCredentialIsUniqueToUser, cancellationToken: cancellationToken);
             if (result.Result == null)
             {
                 HttpContext.Response.StatusCode = 400;
@@ -115,7 +109,7 @@ public class RegistrationController : ControllerBase
         CancellationToken cancellationToken)
     {
         var users = await _kubernetesService.GetUsers(cancellationToken);
-        var user = users.FirstOrDefault(u => u.Username == args.User.Name);
-        return user == null || user.Credentials.All(c => !c.CredentialId.SequenceEqual(args.CredentialId));
+        var user = users.FirstOrDefault(u => u.Spec.Username == args.User.Name);
+        return user == null || user.Spec.Credentials.All(c => !c.CredentialId.SequenceEqual(args.CredentialId));
     }
 }

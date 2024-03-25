@@ -1,23 +1,26 @@
 namespace Nephelite.Controllers;
 
 [ApiController]
-[Route("/user_info")]
+[Route("/userinfo")]
 public class UserInfoController : ControllerBase
 {
     private readonly KeyService _keyService;
+    private readonly NepheliteConfiguration _nepheliteConfiguration;
     private readonly ILogger<UserInfoController> _logger;
 
     public UserInfoController(
         KeyService keyService,
+        NepheliteConfiguration nepheliteConfiguration,
         ILogger<UserInfoController> logger)
     {
         _keyService = keyService;
+        _nepheliteConfiguration = nepheliteConfiguration;
         _logger = logger;
     }
 
     [HttpPost]
     [HttpGet]
-    public async Task<IActionResult> UserInfo()
+    public async Task<IActionResult> UserInfo(CancellationToken cancellationToken)
     {
         HttpContext.Response.Headers.CacheControl = "no-store";
         HttpContext.Response.Headers.Pragma = "no-cache";
@@ -43,13 +46,15 @@ public class UserInfoController : ControllerBase
             return new EmptyResult();
         }
 
+        var keyMaterial = await _keyService.GetKeyMaterial(cancellationToken);
         var jwtHandler = new JsonWebTokenHandler();
+        var idpUrl = $"https://{_nepheliteConfiguration.Host}";
         var validationResult = await jwtHandler.ValidateTokenAsync(accessToken, new TokenValidationParameters
         {
-            ValidIssuer = "https://localhost:7096",
-            ValidAudience = "https://localhost:7096",
-            IssuerSigningKey = _keyService.GetSigningCredentials().Key,
-            TokenDecryptionKey = _keyService.GetAccessTokenEncryptingCredentials().Key,
+            ValidIssuer = idpUrl,
+            ValidAudience = idpUrl,
+            IssuerSigningKey = keyMaterial.SigningKey.Key,
+            TokenDecryptionKey = keyMaterial.AccessTokenEncryptionKey.Key,
             RequireAudience = true,
             ValidateIssuer = true,
             ValidateAudience = true,

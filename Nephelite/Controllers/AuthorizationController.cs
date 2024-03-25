@@ -25,7 +25,8 @@ public class AuthorizationController : ControllerBase
     }
     
     [HttpGet]
-    public async Task<IActionResult> PromptAuthentication([FromQuery] AuthorizationRequest request,
+    public async Task<IActionResult> PromptAuthentication(
+        [FromQuery] AuthorizationRequest request,
         CancellationToken cancellationToken)
     {
         var clients = await _kubernetesService.GetClients(cancellationToken);
@@ -85,12 +86,16 @@ public class AuthorizationController : ControllerBase
                 UserVerificationMethod = true
             }
         );
-        var session = _keyService.EncryptSession(JsonSerializer.Serialize(new AuthorizationSessionInformation
+        var keyMaterial = await _keyService.GetKeyMaterial(cancellationToken);
+
+        var sessionInfo = new AuthorizationSessionInformation
         {
             AuthorizationRequest = request,
             AssertionOptions = assertionOptions,
             RequestStart = DateTime.UtcNow
-        }));
+        };
+        var session = KeyService.Encrypt(keyMaterial.AuthenticateSessionEncryptionKey,
+            JsonSerializer.Serialize(sessionInfo));
         var content = $"""
                        <!DOCTYPE html>
                        <html lang="en">
@@ -128,7 +133,8 @@ public class AuthorizationController : ControllerBase
             return new JsonResult(new {Error = "Invalid client response"});
         }
 
-        var decryptedSession = _keyService.DecryptSession(session);
+        var keyMaterial = await _keyService.GetKeyMaterial(cancellationToken);
+        var decryptedSession = KeyService.Decrypt(keyMaterial.AuthenticateSessionEncryptionKey, session);
         var sessionInformation = JsonSerializer.Deserialize<AuthorizationSessionInformation>(decryptedSession);
         if (sessionInformation == null)
         {
@@ -147,13 +153,29 @@ public class AuthorizationController : ControllerBase
         }
 
         var users = await _kubernetesService.GetUsers(cancellationToken);
-        var cred = users.SelectMany(u => u.Credentials)
-                .First(c => c.CredentialId.SequenceEqual(clientResponse.Id));
+        var cred = users.SelectMany(u => u.Spec.Credentials)
+                .FirstOrDefault(c => c.CredentialId.SequenceEqual(clientResponse.Id));
 
+        if (cred == null)
+        {
+            _logger.LogWarning("Authentication tried with unknown credential: {CredentialId}", clientResponse.Id);
+            return RedirectWithError(request, "access_denied");
+        }
+
+        var hexCredentialId = Convert.ToHexString(cred.CredentialId);
+        var user = users.First(u => u.Spec.Credentials.Any(c => c == cred));
+        var storedSignatureCounter = user.Status.SignatureCounters
+                .GetValueOrDefault(hexCredentialId, 0u);
+
+        AssertionVerificationResult result;
         try
         {
-            await _fido2.MakeAssertionAsync(
-                clientResponse, sessionInformation.AssertionOptions, cred.PublicKey, 0, CheckCredentialBelongsToCorrectUser,
+            result = await _fido2.MakeAssertionAsync(
+                clientResponse,
+                sessionInformation.AssertionOptions,
+                cred.PublicKey,
+                storedSignatureCounter,
+                CheckCredentialBelongsToCorrectUser,
                 cancellationToken: cancellationToken);
         }
         catch (Exception ex)
@@ -162,25 +184,29 @@ public class AuthorizationController : ControllerBase
             return RedirectWithError(request, "access_denied");
         }
 
-        var user = users.First(u => u.Credentials
-            .Any(c => c.CredentialId.SequenceEqual(clientResponse.Id)));
-        var claims = new Dictionary<string, object?>
+        var old = JsonSerializer.SerializeToDocument(user.Status);
+        user.Status.SignatureCounters[hexCredentialId] = result.Counter;
+        var patched = JsonSerializer.SerializeToDocument(user.Status);
+        await _kubernetesService.PatchUser(user.Name(), old.CreatePatch(patched), cancellationToken);
+        
+        var commonClaims = new Dictionary<string, object?>
         {
-            { "sub", user.Username },
-            { "email", user.Email },
-            { "groups", user.Groups }
+            { "auth_time", (ulong)sessionInformation.RequestStart.Subtract(DateTime.UnixEpoch).TotalSeconds },
+            { "sub", user.Spec.Username },
+            { "email", user.Spec.Email },
+            { "groups", user.Spec.Groups }
         };
         
         // Create OpenID spec compliant response with either
         // an authorization code, an id_token or an access token or a combination
 
+        var jwtHandler = new JsonWebTokenHandler();
         var clients = await _kubernetesService.GetClients(cancellationToken);
         var client = clients.First(c => c.ClientId == sessionInformation.AuthorizationRequest.ClientId);
         var tokenLifetime = client.TokenLifetime ?? _nepheliteConfiguration.DefaultTokenLifetime;
         
         var expiryDate = sessionInformation.RequestStart.Add(tokenLifetime);
         var expiresIn = (int)expiryDate.Subtract(DateTime.UtcNow).TotalSeconds;
-        var jwtHandler = new JsonWebTokenHandler();
         var nonce = sessionInformation.AuthorizationRequest.Nonce;
         var idpUrl = $"https://{_nepheliteConfiguration.Host}";
         var accessTokenDescriptor = new SecurityTokenDescriptor
@@ -189,28 +215,37 @@ public class AuthorizationController : ControllerBase
             Audience = idpUrl,
             IssuedAt = sessionInformation.RequestStart,
             Expires = expiryDate,
-            Claims = claims,
-            SigningCredentials = _keyService.GetSigningCredentials(),
-            EncryptingCredentials = _keyService.GetAccessTokenEncryptingCredentials()
+            Claims = commonClaims,
+            SigningCredentials = keyMaterial.SigningKey,
+            EncryptingCredentials = keyMaterial.AccessTokenEncryptionKey
         };
         if(!string.IsNullOrEmpty(nonce))
             accessTokenDescriptor.Claims.Add("nonce", nonce);
         var accessToken = jwtHandler.CreateToken(accessTokenDescriptor);
+        
         var idTokenDescriptor = new SecurityTokenDescriptor
         {
             Issuer = idpUrl,
             Audience = request.ClientId,
             IssuedAt = sessionInformation.RequestStart,
             Expires = expiryDate,
-            Claims = claims,
-            SigningCredentials = _keyService.GetSigningCredentials(),
+            Claims = commonClaims,
+            SigningCredentials = keyMaterial.SigningKey,
             EncryptingCredentials = null
         };
+        
         if (request.ResponseType == "id_token token")
-            idTokenDescriptor.Claims.Add("at_hash",
-                WebEncoders.Base64UrlEncode(SHA256.HashData(Encoding.ASCII.GetBytes(accessToken))));
-        if(!string.IsNullOrEmpty(nonce))
+        {
+            var hashBytes = SHA256.HashData(Encoding.ASCII.GetBytes(accessToken));
+            var atHash = WebEncoders.Base64UrlEncode(hashBytes[..(hashBytes.Length/2)]);
+            idTokenDescriptor.Claims.Add("at_hash", atHash);
+        }
+        
+        if (!string.IsNullOrEmpty(nonce))
+        {
             idTokenDescriptor.Claims.Add("nonce", nonce);
+        }
+
         var idToken = jwtHandler.CreateToken(idTokenDescriptor);
 
         var authorizationCode = jwtHandler.CreateToken(new SecurityTokenDescriptor
@@ -225,8 +260,8 @@ public class AuthorizationController : ControllerBase
                 { "id_token", idToken },
                 { "session_info", decryptedSession }
             },
-            SigningCredentials = _keyService.GetSigningCredentials(),
-            EncryptingCredentials = _keyService.GetAuthorizationCodeEncryptingCredentials()
+            SigningCredentials = keyMaterial.SigningKey,
+            EncryptingCredentials = keyMaterial.AuthorizationCodeEncryptionKey
         });
         
         var uriBuilder = new UriBuilder(new Uri(request.RedirectUri!));
@@ -259,8 +294,8 @@ public class AuthorizationController : ControllerBase
         CancellationToken cancellationToken)
     {
         var users = await _kubernetesService.GetUsers(cancellationToken);
-        var user = users.FirstOrDefault(u => Encoding.UTF8.GetBytes(u.Username).SequenceEqual(args.UserHandle));
-        return user != null && user.Credentials.Any(c => c.CredentialId.SequenceEqual(args.CredentialId));
+        var user = users.FirstOrDefault(u => Encoding.UTF8.GetBytes(u.Spec.Username).SequenceEqual(args.UserHandle));
+        return user != null && user.Spec.Credentials.Any(c => c.CredentialId.SequenceEqual(args.CredentialId));
     }
 
     private RedirectResult RedirectWithError(AuthorizationRequest request, string error)

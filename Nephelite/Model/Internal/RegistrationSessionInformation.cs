@@ -1,4 +1,4 @@
-namespace Nephelite.Model;
+namespace Nephelite.Model.Internal;
 
 public class RegistrationSessionInformation
 {

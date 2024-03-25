@@ -12,6 +12,12 @@ public abstract class CustomResource<TSpec> : CustomResource
     public TSpec Spec { get; set; } = default!;
 }
 
+public abstract class CustomResource<TSpec, TStatus> : CustomResource<TSpec>
+{
+    [JsonPropertyName("status")]
+    public TStatus Status { get; set; } = default!;
+}
+
 public class CustomResourceList<T> : KubernetesObject
     where T : CustomResource
 {

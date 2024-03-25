@@ -1,6 +1,6 @@
-namespace Nephelite.Model;
+namespace Nephelite.Model.OpenId;
 
-public class SucessfulTokenResponse
+public class SuccessfulTokenResponse
 {
     [JsonPropertyName("access_token")]
     public string? AccessToken { get; set; }
