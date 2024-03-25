@@ -191,7 +191,7 @@ public class AuthorizationController : ControllerBase
         
         var commonClaims = new Dictionary<string, object?>
         {
-            { "auth_time", (ulong)sessionInformation.RequestStart.Subtract(DateTime.UnixEpoch).TotalSeconds },
+            { "auth_time", (int)sessionInformation.RequestStart.Subtract(DateTime.UnixEpoch).TotalSeconds },
             { "sub", user.Spec.Username },
             { "email", user.Spec.Email },
             { "groups", user.Spec.Groups }
