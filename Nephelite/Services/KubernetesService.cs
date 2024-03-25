@@ -44,15 +44,15 @@ public class KubernetesService
             .ToList();
     }
 
-    public async Task ReplaceUserStatus(string name, V1UserStatus status, CancellationToken cancellationToken)
+    public async Task ReplaceUserStatus(V1User user, CancellationToken cancellationToken)
     {
         await _kubernetes.ReplaceNamespacedCustomObjectStatusAsync<V1UserStatus>(
-            status,
+            user,
             CrdGroupName,
             CrdVersion,
             _namespace,
             CrdUserPlural,
-            name,
+            user.Name(),
             cancellationToken: cancellationToken);
     }
 
