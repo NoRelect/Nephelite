@@ -1,6 +1,6 @@
 # Nephelite
 
-Nephelite is a WebAuthn based identity provider. It can deployed into a kubernetes cluster using ArgoCD,
+Nephelite is a WebAuthn based identity provider. It can be deployed into a kubernetes cluster using ArgoCD,
 an example deployment is given below:
 
 ```yaml
@@ -41,7 +41,7 @@ spec:
 ## Adding users
 
 Adding users is done via kubernetes custom resource. To get the custom resource definition for a specific
-webauthn credential, you can generate it your `identity.example.com` page. It might look something like this:
+webauthn credential, you can generate it by visiting your `identity.example.com` page. It might look something like this:
 
 ```yaml
 apiVersion: nephelite.norelect.ch/v1
