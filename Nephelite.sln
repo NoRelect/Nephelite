@@ -4,7 +4,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nephelite", "Nephelite\Neph
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "GitHub", "GitHub", "{B80156BF-E22D-461E-8F0C-DD1AC6D37541}"
 	ProjectSection(SolutionItems) = preProject
-		.github\workflows\docker.yaml = .github\workflows\docker.yaml
+		.github\workflows\release.yaml = .github\workflows\release.yaml
 		README.md = README.md
 	EndProjectSection
 EndProject
