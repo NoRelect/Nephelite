@@ -9,7 +9,7 @@
 
     <ItemGroup>
         <PackageReference Include="Fido2.AspNet" Version="3.0.1" />
-        <PackageReference Include="KubernetesClient" Version="14.0.9" />
+        <PackageReference Include="KubernetesClient" Version="14.0.12" />
         <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.0.2" />
         <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.0.2" />
     </ItemGroup>
