@@ -30,9 +30,9 @@ spec:
             - secretName: example-tls-cert
               hosts:
                 - identity.example.com
-    path: Nephelite/Helm
-    repoURL: https://github.com/NoRelect/nephelite.git
-    targetRevision: HEAD
+    repoURL: ghcr.io/norelect/charts
+    chart: nephelite
+    targetRevision: 0.2.1
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
