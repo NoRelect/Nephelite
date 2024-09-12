@@ -71,3 +71,16 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
             ${{ steps.meta.outputs.labels }}
+
+      - name: Push helm chart
+        if: steps.semrel.outputs.version != ''
+        uses: appany/helm-oci-chart-releaser@v0.4.2
+        with:
+          name: nephelite
+          repository: norelect/charts
+          tag: ${{ steps.semrel.outputs.version }}
+          app_version: ${{ steps.semrel.outputs.version }}
+          path: charts/nephelite
+          registry: ghcr.io
+          registry_username: ${{ github.repository_owner }}
+          registry_password: ${{ secrets.GITHUB_TOKEN }}

@@ -5,7 +5,7 @@ nephelite:
 
 image:
   repository: ghcr.io/norelect/nephelite
-  pullPolicy: Always
+  pullPolicy: IfNotPresent
   tag: ""
 imagePullSecrets: []
 nameOverride: ""
