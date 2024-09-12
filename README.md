@@ -32,7 +32,7 @@ spec:
                 - identity.example.com
     repoURL: ghcr.io/norelect/charts
     chart: nephelite
-    targetRevision: 0.2.1
+    targetRevision: 0.2.4
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
