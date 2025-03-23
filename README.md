@@ -1,41 +1,22 @@
 # Nephelite
 
-Nephelite is a WebAuthn based identity provider. It can be deployed into a kubernetes cluster using ArgoCD,
-an example deployment is given below:
+Nephelite is a WebAuthn based identity provider. It can be deployed into a kubernetes cluster using helm:
+An example `values.yaml` is given below:
 
 ```yaml
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: nephelite
-  namespace: argocd
-spec:
-  destination:
-    namespace: nephelite
-    server: https://kubernetes.default.svc
-  project: default
-  source:
-    helm:
-      values: |
-        nephelite:
-          host: identity.example.com
-        ingress:
-          enabled: true
-          hosts:
-            - host: identity.example.com
-              paths:
-                - path: /
-                  pathType: Prefix
-          tls:
-            - secretName: example-tls-cert
-              hosts:
-                - identity.example.com
-    repoURL: ghcr.io/norelect/charts
-    chart: nephelite
-    targetRevision: 0.2.4
-  syncPolicy:
-    syncOptions:
-      - CreateNamespace=true
+nephelite:
+  host: identity.example.com
+ingress:
+  enabled: true
+  hosts:
+    - host: identity.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: example-tls-cert
+      hosts:
+        - identity.example.com
 ```
 
 ## Adding users
