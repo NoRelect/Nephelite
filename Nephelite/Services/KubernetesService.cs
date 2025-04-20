@@ -8,10 +8,10 @@ public class KubernetesService
     private const string CrdClientPlural = "clients";
     private const string CrdUserPlural = "users";
     private const string KeySecretName = "nephelite-keys";
-    
+
     private readonly Kubernetes _kubernetes;
     private readonly string _namespace;
-    
+
     public KubernetesService(Kubernetes kubernetes)
     {
         _kubernetes = kubernetes;
@@ -22,7 +22,7 @@ public class KubernetesService
     public async Task<List<V1ClientSpec>> GetClients(CancellationToken cancellationToken)
     {
         var clientList = await _kubernetes.ListNamespacedCustomObjectAsync<CustomResourceList<V1Client>>(
-            CrdGroupName, 
+            CrdGroupName,
             CrdVersion,
             _namespace,
             CrdClientPlural,
@@ -31,7 +31,7 @@ public class KubernetesService
             .Select(c => c.Spec)
             .ToList();
     }
-    
+
     public async Task<List<V1User>> GetUsers(CancellationToken cancellationToken)
     {
         var clientList = await _kubernetes.ListNamespacedCustomObjectAsync<CustomResourceList<V1User>>(

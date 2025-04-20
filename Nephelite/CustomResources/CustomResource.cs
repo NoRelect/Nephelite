@@ -23,7 +23,7 @@ public class CustomResourceList<T> : KubernetesObject
 {
     [JsonPropertyName("metadata")]
     public V1ListMeta Metadata { get; set; } = default!;
-    
+
     [JsonPropertyName("items")]
     public List<T> Items { get; set; } = default!;
 }

@@ -23,7 +23,7 @@ public class AuthorizationController : ControllerBase
         _nepheliteConfiguration = nepheliteConfiguration.Value;
         _logger = logger;
     }
-    
+
     [HttpGet]
     public async Task<IActionResult> PromptAuthentication(
         [FromQuery] AuthorizationRequest request,
@@ -37,7 +37,7 @@ public class AuthorizationController : ControllerBase
             HttpContext.Response.StatusCode = 400;
             return new JsonResult(new {Error = "Invalid client id"});
         }
-        
+
         if (string.IsNullOrEmpty(request.RedirectUri) ||
             !client.RedirectUris.Contains(request.RedirectUri))
         {
@@ -52,7 +52,7 @@ public class AuthorizationController : ControllerBase
             _logger.LogWarning("Request is missing the openid scope: '{Scope}'", request.Scope);
             return RedirectWithError(request, "invalid_scope");
         }
-        
+
         var validResponseTypes = new [] { "code", "id_token token", "id_token" };
         if (string.IsNullOrEmpty(request.ResponseType) || !validResponseTypes.Contains(request.ResponseType))
         {
@@ -76,7 +76,7 @@ public class AuthorizationController : ControllerBase
             // We do not keep track of who is logged in or not, so we always return the "not logged in" state
             return RedirectWithError(request, "login_required");
         }
-        
+
         var assertionOptions = _fido2.GetAssertionOptions(
             new List<PublicKeyCredentialDescriptor>(),
             UserVerificationRequirement.Required,
@@ -104,7 +104,7 @@ public class AuthorizationController : ControllerBase
                                <link rel="stylesheet" href="css/style.css" />
                            </head>
                            <body>
-                               <img class="logo" src="img/logo.png" alt="Nephelite Logo"> 
+                               <img class="logo" src="img/logo.png" alt="Nephelite Logo">
                                <script type="text/javascript" src="js/script.js"></script>
                                <script type="text/javascript">
                                    let session = "{session}";
@@ -116,7 +116,7 @@ public class AuthorizationController : ControllerBase
                        """;
         return new FileContentResult(Encoding.UTF8.GetBytes(content), "text/html");
     }
-    
+
     [HttpPost]
     public async Task<IActionResult> Authenticate(
         [FromForm] string session,
@@ -125,7 +125,7 @@ public class AuthorizationController : ControllerBase
     {
         HttpContext.Response.Headers.CacheControl = "no-store";
         HttpContext.Response.Headers.Pragma = "no-cache";
-        
+
         var clientResponse = JsonSerializer.Deserialize<AuthenticatorAssertionRawResponse>(response);
         if (clientResponse == null)
         {
@@ -183,12 +183,12 @@ public class AuthorizationController : ControllerBase
             _logger.LogWarning("Authentication failed: {Exception}", ex);
             return RedirectWithError(request, "access_denied");
         }
-        
+
         user.Status ??= new V1UserStatus();
         user.Status.LastAuthentication = DateTime.UtcNow;
         user.Status.SignatureCounters[hexCredentialId] = result.Counter;
         await _kubernetesService.ReplaceUserStatus(user, cancellationToken);
-        
+
         var commonClaims = new Dictionary<string, object?>
         {
             { "auth_time", (int)sessionInformation.RequestStart.Subtract(DateTime.UnixEpoch).TotalSeconds },
@@ -196,7 +196,7 @@ public class AuthorizationController : ControllerBase
             { "email", user.Spec.Email },
             { "groups", user.Spec.Groups }
         };
-        
+
         // Create OpenID spec compliant response with either
         // an authorization code, an id_token or an access token or a combination
 
@@ -204,7 +204,7 @@ public class AuthorizationController : ControllerBase
         var clients = await _kubernetesService.GetClients(cancellationToken);
         var client = clients.First(c => c.ClientId == sessionInformation.AuthorizationRequest.ClientId);
         var tokenLifetime = client.TokenLifetime ?? _nepheliteConfiguration.DefaultTokenLifetime;
-        
+
         var expiryDate = sessionInformation.RequestStart.Add(tokenLifetime);
         var expiresIn = (int)expiryDate.Subtract(DateTime.UtcNow).TotalSeconds;
         var nonce = sessionInformation.AuthorizationRequest.Nonce;
@@ -222,7 +222,7 @@ public class AuthorizationController : ControllerBase
         if(!string.IsNullOrEmpty(nonce))
             accessTokenDescriptor.Claims.Add("nonce", nonce);
         var accessToken = jwtHandler.CreateToken(accessTokenDescriptor);
-        
+
         var idTokenDescriptor = new SecurityTokenDescriptor
         {
             Issuer = idpUrl,
@@ -233,14 +233,14 @@ public class AuthorizationController : ControllerBase
             SigningCredentials = keyMaterial.SigningKey,
             EncryptingCredentials = null
         };
-        
+
         if (request.ResponseType == "id_token token")
         {
             var hashBytes = SHA256.HashData(Encoding.ASCII.GetBytes(accessToken));
             var atHash = WebEncoders.Base64UrlEncode(hashBytes[..(hashBytes.Length/2)]);
             idTokenDescriptor.Claims.Add("at_hash", atHash);
         }
-        
+
         if (!string.IsNullOrEmpty(nonce))
         {
             idTokenDescriptor.Claims.Add("nonce", nonce);
@@ -263,7 +263,7 @@ public class AuthorizationController : ControllerBase
             SigningCredentials = keyMaterial.SigningKey,
             EncryptingCredentials = keyMaterial.AuthorizationCodeEncryptionKey
         });
-        
+
         var uriBuilder = new UriBuilder(new Uri(request.RedirectUri!));
         switch (request.ResponseType)
         {

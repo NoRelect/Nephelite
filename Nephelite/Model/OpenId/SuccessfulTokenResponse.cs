@@ -10,7 +10,7 @@ public class SuccessfulTokenResponse
 
     [JsonPropertyName("refresh_token")]
     public string? RefreshToken { get; set; }
-    
+
     [JsonPropertyName("id_token")]
     public string? IdToken { get; set; }
 

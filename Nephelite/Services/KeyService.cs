@@ -12,7 +12,7 @@ public class KeyService
     private readonly KubernetesService _kubernetesService;
     private readonly IMemoryCache _memoryCache;
     private readonly ILogger<KeyService> _logger;
-    
+
     public KeyService(
         KubernetesService kubernetesService,
         IMemoryCache memoryCache,
@@ -27,7 +27,7 @@ public class KeyService
     {
         if (_memoryCache.TryGetValue<KeyMaterial>(KeyMaterialCacheName, out var existingKeyMaterial))
             return existingKeyMaterial!;
-        
+
         IDictionary<string, byte[]>? secret = null;
         try
         {
@@ -87,11 +87,11 @@ public class KeyService
                 SecurityAlgorithms.Aes256KW,
                 SecurityAlgorithms.Aes256CbcHmacSha512),
         };
-        
+
         _memoryCache.Set(KeyMaterialCacheName, keyMaterial, TimeSpan.FromMinutes(1));
         return keyMaterial;
     }
-    
+
     public static string Encrypt(ChaCha20Poly1305 key, string data)
     {
         var plain = Encoding.UTF8.GetBytes(data);

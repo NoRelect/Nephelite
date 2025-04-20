@@ -61,7 +61,7 @@ public class UserInfoController : ControllerBase
             ValidateIssuerSigningKey = true,
             ClockSkew = TimeSpan.Zero
         });
-        
+
         if (!validationResult.IsValid)
         {
             HttpContext.Response.StatusCode = 401;

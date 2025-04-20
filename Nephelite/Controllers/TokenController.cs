@@ -86,7 +86,7 @@ public class TokenController : ControllerBase
             ValidateIssuerSigningKey = true,
             ClockSkew = TimeSpan.Zero
         });
-        
+
         if (!validationResult.IsValid)
         {
             HttpContext.Response.StatusCode = 400;
@@ -113,7 +113,7 @@ public class TokenController : ControllerBase
             });
         }
 
-        var tokenLifetime = client.TokenLifetime ?? _nepheliteConfiguration.DefaultTokenLifetime; 
+        var tokenLifetime = client.TokenLifetime ?? _nepheliteConfiguration.DefaultTokenLifetime;
         return new JsonResult(new SuccessfulTokenResponse
         {
             TokenType = "Bearer",

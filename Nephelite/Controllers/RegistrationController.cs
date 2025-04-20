@@ -20,7 +20,7 @@ public class RegistrationController : ControllerBase
         _fido2 = fido2;
         _logger = logger;
     }
-    
+
     [HttpGet]
     [Route("registrationOptions")]
     public async Task<IActionResult> GetRegisterOptions([FromQuery] string username, CancellationToken cancellationToken)
@@ -49,7 +49,7 @@ public class RegistrationController : ControllerBase
             Options = credentialCreateOptions
         });
     }
-    
+
     [HttpPost]
     [Route("register")]
     public async Task<IActionResult> RegisterCredential(

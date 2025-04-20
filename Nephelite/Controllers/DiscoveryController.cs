@@ -5,7 +5,7 @@ namespace Nephelite.Controllers;
 public class DiscoveryController : ControllerBase
 {
     private readonly NepheliteConfiguration _nepheliteConfiguration;
-    
+
     public DiscoveryController(IOptions<NepheliteConfiguration> nepheliteConfiguration)
     {
         _nepheliteConfiguration = nepheliteConfiguration.Value;
