@@ -2,30 +2,18 @@ namespace Nephelite.Controllers;
 
 [ApiController]
 [Route("/")]
-public class RegistrationController : ControllerBase
+public class RegistrationController(
+    KubernetesService kubernetesService,
+    KeyService keyService,
+    IFido2 fido2,
+    ILogger<RegistrationController> logger) : ControllerBase
 {
-    private readonly KubernetesService _kubernetesService;
-    private readonly KeyService _keyService;
-    private readonly IFido2 _fido2;
-    private readonly ILogger<RegistrationController> _logger;
-
-    public RegistrationController(
-        KubernetesService kubernetesService,
-        KeyService keyService,
-        IFido2 fido2,
-        ILogger<RegistrationController> logger)
-    {
-        _kubernetesService = kubernetesService;
-        _keyService = keyService;
-        _fido2 = fido2;
-        _logger = logger;
-    }
 
     [HttpGet]
     [Route("registrationOptions")]
     public async Task<IActionResult> GetRegisterOptions([FromQuery] string username, CancellationToken cancellationToken)
     {
-        var credentialCreateOptions = _fido2.RequestNewCredential(new Fido2User
+        var credentialCreateOptions = fido2.RequestNewCredential(new Fido2User
             {
                 Id = Encoding.UTF8.GetBytes(username),
                 Name = username,
@@ -37,7 +25,7 @@ public class RegistrationController : ControllerBase
                 UserVerification = UserVerificationRequirement.Required,
                 RequireResidentKey = true
             }, AttestationConveyancePreference.None);
-        var keyMaterial = await _keyService.GetKeyMaterial(cancellationToken);
+        var keyMaterial = await keyService.GetKeyMaterial(cancellationToken);
         var sessionInfo = new RegistrationSessionInformation
         {
             CreateOptions = credentialCreateOptions
@@ -57,7 +45,7 @@ public class RegistrationController : ControllerBase
         [FromForm] string response,
         CancellationToken cancellationToken)
     {
-        var keyMaterial = await _keyService.GetKeyMaterial(cancellationToken);
+        var keyMaterial = await keyService.GetKeyMaterial(cancellationToken);
         var sessionInfo = JsonSerializer.Deserialize<RegistrationSessionInformation>(
             KeyService.Decrypt(keyMaterial.RegisterSessionEncryptionKey, session));
         var attestationResponse = JsonSerializer.Deserialize<AuthenticatorAttestationRawResponse>(response);
@@ -65,18 +53,18 @@ public class RegistrationController : ControllerBase
         if (sessionInfo == null || attestationResponse == null)
         {
             HttpContext.Response.StatusCode = 400;
-            _logger.LogWarning("Invalid session information or attestation response");
+            logger.LogWarning("Invalid session information or attestation response");
             return new EmptyResult();
         }
 
         try
         {
-            var result = await _fido2.MakeNewCredentialAsync(attestationResponse, sessionInfo.CreateOptions,
+            var result = await fido2.MakeNewCredentialAsync(attestationResponse, sessionInfo.CreateOptions,
                 CheckIfCredentialIsUniqueToUser, cancellationToken: cancellationToken);
             if (result.Result == null)
             {
                 HttpContext.Response.StatusCode = 400;
-                _logger.LogWarning("Empty credential result: {Result}", result);
+                logger.LogWarning("Empty credential result: {Result}", result);
                 return new EmptyResult();
             }
 
@@ -100,7 +88,7 @@ public class RegistrationController : ControllerBase
         catch (Exception ex)
         {
             HttpContext.Response.StatusCode = 400;
-            _logger.LogWarning("Invalid attestationResponse: {Exception}", ex);
+            logger.LogWarning("Invalid attestationResponse: {Exception}", ex);
             return new EmptyResult();
         }
     }
@@ -108,7 +96,7 @@ public class RegistrationController : ControllerBase
     private async Task<bool> CheckIfCredentialIsUniqueToUser(IsCredentialIdUniqueToUserParams args,
         CancellationToken cancellationToken)
     {
-        var users = await _kubernetesService.GetUsers(cancellationToken);
+        var users = await kubernetesService.GetUsers(cancellationToken);
         var user = users.FirstOrDefault(u => u.Spec.Username == args.User.Name);
         return user == null || user.Spec.Credentials.All(c => !c.CredentialId.SequenceEqual(args.CredentialId));
     }

@@ -1,6 +1,9 @@
 namespace Nephelite.Services;
 
-public class KeyService
+public class KeyService(
+    KubernetesService kubernetesService,
+    IMemoryCache memoryCache,
+    ILogger<KeyService> logger)
 {
     private const string KeyMaterialCacheName = "keyMaterial";
     private const string SigningKeyField = "signingKey";
@@ -9,29 +12,15 @@ public class KeyService
     private const string AccessTokenEncryptionKeyField = "accessTokenEncryptionKey";
     private const string AuthorizationCodeEncryptionKeyField = "authorizationCodeEncryptionKey";
 
-    private readonly KubernetesService _kubernetesService;
-    private readonly IMemoryCache _memoryCache;
-    private readonly ILogger<KeyService> _logger;
-
-    public KeyService(
-        KubernetesService kubernetesService,
-        IMemoryCache memoryCache,
-        ILogger<KeyService> logger)
-    {
-        _kubernetesService = kubernetesService;
-        _memoryCache = memoryCache;
-        _logger = logger;
-    }
-
     public async Task<KeyMaterial> GetKeyMaterial(CancellationToken cancellationToken)
     {
-        if (_memoryCache.TryGetValue<KeyMaterial>(KeyMaterialCacheName, out var existingKeyMaterial))
+        if (memoryCache.TryGetValue<KeyMaterial>(KeyMaterialCacheName, out var existingKeyMaterial))
             return existingKeyMaterial!;
 
         IDictionary<string, byte[]>? secret = null;
         try
         {
-            secret = await _kubernetesService.GetSecret(cancellationToken);
+            secret = await kubernetesService.GetSecret(cancellationToken);
         }
         catch (HttpOperationException)
         {
@@ -40,7 +29,7 @@ public class KeyService
         {
             try
             {
-                await _kubernetesService.CreateImmutableSecret(new Dictionary<string, byte[]>
+                await kubernetesService.CreateImmutableSecret(new Dictionary<string, byte[]>
                 {
                     { SigningKeyField, RSA.Create(4096).ExportRSAPrivateKey() },
                     { RegisterSessionEncryptionKeyField, RandomNumberGenerator.GetBytes(32) },
@@ -51,15 +40,15 @@ public class KeyService
             }
             catch (HttpOperationException ex)
             {
-                _logger.LogWarning("Exception while creating the key material {Exception}", ex);
+                logger.LogWarning("Exception while creating the key material {Exception}", ex);
             }
             try
             {
-                secret = await _kubernetesService.GetSecret(cancellationToken);
+                secret = await kubernetesService.GetSecret(cancellationToken);
             }
             catch (HttpOperationException ex)
             {
-                _logger.LogWarning("Exception while fetching the key material {Exception}", ex);
+                logger.LogWarning("Exception while fetching the key material {Exception}", ex);
             }
         }
         if (secret == null)
@@ -88,7 +77,7 @@ public class KeyService
                 SecurityAlgorithms.Aes256CbcHmacSha512),
         };
 
-        _memoryCache.Set(KeyMaterialCacheName, keyMaterial, TimeSpan.FromMinutes(1));
+        memoryCache.Set(KeyMaterialCacheName, keyMaterial, TimeSpan.FromMinutes(1));
         return keyMaterial;
     }
 

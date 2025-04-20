@@ -2,24 +2,13 @@ namespace Nephelite.Controllers;
 
 [ApiController]
 [Route("/token")]
-public class TokenController : ControllerBase
+public class TokenController(
+    KeyService keyService,
+    KubernetesService kubernetesService,
+    IOptions<NepheliteConfiguration> nepheliteConfiguration,
+    ILogger<TokenController> logger) : ControllerBase
 {
-    private readonly KeyService _keyService;
-    private readonly KubernetesService _kubernetesService;
-    private readonly NepheliteConfiguration _nepheliteConfiguration;
-    private readonly ILogger<TokenController> _logger;
-
-    public TokenController(
-        KeyService keyService,
-        KubernetesService kubernetesService,
-        IOptions<NepheliteConfiguration> nepheliteConfiguration,
-        ILogger<TokenController> logger)
-    {
-        _keyService = keyService;
-        _kubernetesService = kubernetesService;
-        _nepheliteConfiguration = nepheliteConfiguration.Value;
-        _logger = logger;
-    }
+    private readonly NepheliteConfiguration _nepheliteConfiguration = nepheliteConfiguration.Value;
 
     [HttpPost]
     public async Task<IActionResult> Post([FromForm] TokenRequest request, CancellationToken cancellationToken)
@@ -30,7 +19,7 @@ public class TokenController : ControllerBase
         if (request.GrantType != "authorization_code")
         {
             HttpContext.Response.StatusCode = 400;
-            _logger.LogWarning("Token request used an unsupported grant type: {GrantType}", request.GrantType);
+            logger.LogWarning("Token request used an unsupported grant type: {GrantType}", request.GrantType);
             return new JsonResult(new ErrorTokenResponse
             {
                 Error = "unsupported_grant_type",
@@ -46,13 +35,13 @@ public class TokenController : ControllerBase
             clientSecret = request.ClientSecret;
         }
 
-        var clients = await _kubernetesService.GetClients(cancellationToken);
+        var clients = await kubernetesService.GetClients(cancellationToken);
         var client = clients.FirstOrDefault(c => c.ClientId == clientId && c.ClientSecret == clientSecret);
         if (client == null)
         {
             HttpContext.Response.StatusCode = 401;
             HttpContext.Response.Headers.WWWAuthenticate = "Basic realm=Nephelite, charset=\"UTF-8\"";
-            _logger.LogWarning("Token request supplied invalid client credentials");
+            logger.LogWarning("Token request supplied invalid client credentials");
             return new JsonResult(new ErrorTokenResponse
             {
                 Error = "invalid_client",
@@ -63,7 +52,7 @@ public class TokenController : ControllerBase
         if (request.Code == null)
         {
             HttpContext.Response.StatusCode = 400;
-            _logger.LogWarning("Token request is missing the code parameter");
+            logger.LogWarning("Token request is missing the code parameter");
             return new JsonResult(new ErrorTokenResponse
             {
                 Error = "invalid_grant",
@@ -71,7 +60,7 @@ public class TokenController : ControllerBase
             });
         }
 
-        var keyMaterial = await _keyService.GetKeyMaterial(cancellationToken);
+        var keyMaterial = await keyService.GetKeyMaterial(cancellationToken);
         var jwtHandler = new JsonWebTokenHandler();
         var idpUrl = $"https://{_nepheliteConfiguration.Host}";
         var validationResult = await jwtHandler.ValidateTokenAsync(request.Code, new TokenValidationParameters
@@ -90,7 +79,7 @@ public class TokenController : ControllerBase
         if (!validationResult.IsValid)
         {
             HttpContext.Response.StatusCode = 400;
-            _logger.LogWarning("Token request contained invalid code parameter: {Exception}", validationResult.Exception);
+            logger.LogWarning("Token request contained invalid code parameter: {Exception}", validationResult.Exception);
             return new JsonResult(new ErrorTokenResponse
             {
                 Error = "invalid_grant",
@@ -105,7 +94,7 @@ public class TokenController : ControllerBase
             !client.RedirectUris.Contains(request.RedirectUri)))
         {
             HttpContext.Response.StatusCode = 400;
-            _logger.LogWarning("Token request contained invalid redirect uri: {RedirectUri}", request.RedirectUri);
+            logger.LogWarning("Token request contained invalid redirect uri: {RedirectUri}", request.RedirectUri);
             return new JsonResult(new ErrorTokenResponse
             {
                 Error = "invalid_request",

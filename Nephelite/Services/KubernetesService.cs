@@ -1,6 +1,6 @@
 namespace Nephelite.Services;
 
-public class KubernetesService
+public class KubernetesService(Kubernetes kubernetes)
 {
     private const string NamespaceEnvVarName = "NEPHELITE_NAMESPACE";
     private const string CrdGroupName = "nephelite.norelect.ch";
@@ -9,19 +9,12 @@ public class KubernetesService
     private const string CrdUserPlural = "users";
     private const string KeySecretName = "nephelite-keys";
 
-    private readonly Kubernetes _kubernetes;
-    private readonly string _namespace;
-
-    public KubernetesService(Kubernetes kubernetes)
-    {
-        _kubernetes = kubernetes;
-        _namespace = Environment.GetEnvironmentVariable(NamespaceEnvVarName) ??
+    private readonly string _namespace = Environment.GetEnvironmentVariable(NamespaceEnvVarName) ??
                      throw new Exception($"No {NamespaceEnvVarName} environment variable set.");
-    }
 
     public async Task<List<V1ClientSpec>> GetClients(CancellationToken cancellationToken)
     {
-        var clientList = await _kubernetes.ListNamespacedCustomObjectAsync<CustomResourceList<V1Client>>(
+        var clientList = await kubernetes.ListNamespacedCustomObjectAsync<CustomResourceList<V1Client>>(
             CrdGroupName,
             CrdVersion,
             _namespace,
@@ -34,7 +27,7 @@ public class KubernetesService
 
     public async Task<List<V1User>> GetUsers(CancellationToken cancellationToken)
     {
-        var clientList = await _kubernetes.ListNamespacedCustomObjectAsync<CustomResourceList<V1User>>(
+        var clientList = await kubernetes.ListNamespacedCustomObjectAsync<CustomResourceList<V1User>>(
             CrdGroupName,
             CrdVersion,
             _namespace,
@@ -46,7 +39,7 @@ public class KubernetesService
 
     public async Task ReplaceUserStatus(V1User user, CancellationToken cancellationToken)
     {
-        await _kubernetes.ReplaceNamespacedCustomObjectStatusAsync<V1UserStatus>(
+        await kubernetes.ReplaceNamespacedCustomObjectStatusAsync<V1UserStatus>(
             user,
             CrdGroupName,
             CrdVersion,
@@ -58,7 +51,7 @@ public class KubernetesService
 
     public async Task<IDictionary<string, byte[]>?> GetSecret(CancellationToken cancellationToken)
     {
-        var secret = await _kubernetes.ReadNamespacedSecretAsync(
+        var secret = await kubernetes.ReadNamespacedSecretAsync(
             KeySecretName,
             _namespace,
             cancellationToken: cancellationToken);
@@ -78,6 +71,6 @@ public class KubernetesService
             Type = "Opaque",
             Data = data
         };
-        await _kubernetes.CreateNamespacedSecretAsync(secret, _namespace, cancellationToken: cancellationToken);
+        await kubernetes.CreateNamespacedSecretAsync(secret, _namespace, cancellationToken: cancellationToken);
     }
 }
