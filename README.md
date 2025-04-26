@@ -58,3 +58,4 @@ spec:
   redirectUris:
     - https://app.example.com/auth/callback
 ```
+
