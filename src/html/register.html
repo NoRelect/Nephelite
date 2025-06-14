@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Register</title>
+    </head>
+    <body>
+        <h1>Register</h1>
+        <button onclick="registerAsync()">Register</button>
+        <script type="text/javascript">
+            function Uint8ArrayFromHex(string) {
+                const uint8array = new Uint8Array(Math.ceil(string.length / 2));
+                for (let i = 0; i < string.length;i += 2)
+                    uint8array[i / 2] = Number.parseInt(string.slice(i, i + 2), 16);
+                return uint8array;
+            }
+            function Uint8ArrayToHex(buffer) {
+                return Array.prototype.map.call(buffer, x => x.toString(16).padStart(2, '0')).join('');
+            }
+            async function registerAsync() {
+                let registrationInitializationResponse = await fetch("/api/registration/initialize");
+                let registrationOptions = await registrationInitializationResponse.json();
+                let publicKey = {
+                    attestation: registrationOptions.attestation,
+                    challenge: Uint8ArrayFromHex(registrationOptions.challenge),
+                    pubKeyCredParams: registrationOptions.pubKeyCredParams,
+                    user: {
+                        displayName: registrationOptions.userDisplayName,
+                        id: Uint8ArrayFromHex(registrationOptions.userId),
+                        name: registrationOptions.userName
+                    },
+                    rp: {
+                        id: registrationOptions.rpId,
+                        name: registrationOptions.rpName
+                    },
+                };
+                let credential = await navigator.credentials.create({ publicKey });
+                console.log(credential);
+
+                let attestationObject = new Uint8Array(credential.response.attestationObject);
+                let registrationCompletionResponse = await fetch("/api/registration/complete", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        attestationObject: Uint8ArrayToHex(attestationObject)
+                    })
+                });
+                return credential;
+            }
+        </script>
+    </body>
+</html>
