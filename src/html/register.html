@@ -37,13 +37,15 @@
                 console.log(credential);
 
                 let attestationObject = new Uint8Array(credential.response.attestationObject);
+                let clientData = new Uint8Array(credential.response.clientDataJSON);
                 let registrationCompletionResponse = await fetch("/api/registration/complete", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        attestationObject: Uint8ArrayToHex(attestationObject)
+                        attestationObject: Uint8ArrayToHex(attestationObject),
+                        clientData: Uint8ArrayToHex(clientData),
                     })
                 });
                 return credential;
