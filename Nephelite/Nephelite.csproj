@@ -8,7 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Fido2.AspNet" Version="3.0.1" />
+        <PackageReference Include="Fido2.AspNet" Version="4.0.0" />
         <PackageReference Include="KubernetesClient" Version="17.0.14" />
         <PackageReference Include="Microsoft.IdentityModel.JsonWebTokens" Version="8.14.0" />
         <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.14.0" />
